@@ -88,7 +88,7 @@ def short_tables(project: RecompProject, image: GuestImage) -> list[ShortTable]:
 
 
 def write_config(project: RecompProject, tables: list[ShortTable]) -> Path:
-    config = project.root / "config" / "switch_tables.toml"
+    config = project.functions_config.parent / "switch_tables.toml"
     existing = config.read_text() if config.exists() else (
         "# Jump tables whose size codegen under-counts. Codegen sizes a table from the\n"
         "# bounds check before the bctr; when another path reaches the table with a\n"
@@ -112,12 +112,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="Find jump tables that codegen sized too small, using a guest image dump.")
     parser.add_argument("--game", required=True, help="game folder, e.g. skate2")
+    parser.add_argument("--module", default="default",
+                        help="DLL module to work on, named after its generated folder (e.g. Loader_DLL)")
     parser.add_argument("--image", type=Path, help="image dump (default <game>/out/image_dump.bin)")
     parser.add_argument("--write", action="store_true",
                         help="append the tables to config/switch_tables.toml")
     args = parser.parse_args()
 
-    project = RecompProject(args.game)
+    project = RecompProject(args.game, args.module)
     image = GuestImage(args.image or project.default_image_dump)
     tables = short_tables(project, image)
     for table in tables:
@@ -126,7 +128,7 @@ def main():
     print(f"{len(tables)} short jump tables")
     if args.write and tables:
         config = write_config(project, tables)
-        print(f"wrote {config}; add \"config/switch_tables.toml\" to the manifest includes if missing")
+        print(f"wrote {config}; add it to the module's manifest includes if missing")
 
 
 if __name__ == "__main__":

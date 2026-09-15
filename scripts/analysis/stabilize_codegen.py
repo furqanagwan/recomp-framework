@@ -30,15 +30,61 @@ def find_rexglue(explicit: str | None) -> str:
 
 
 def run_codegen(rexglue: str, project: RecompProject, log_path: Path) -> tuple[int, str]:
-    manifest = next(project.root.glob("*_manifest.toml"), None)
-    if manifest is None:
-        raise SystemExit(f"No *_manifest.toml in {project.root}")
-    result = subprocess.run([rexglue, "codegen", manifest.name], cwd=project.root,
+    result = subprocess.run([rexglue, "codegen", project.manifest_path.name], cwd=project.root,
                             capture_output=True, text=True, errors="replace")
     output = result.stdout + result.stderr
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text(output, encoding="utf-8")
     return result.returncode, output
+
+
+MODULE_MARKER = re.compile(r"^\s+(?:start|phase|done)\s+(\S+?)\.(?:xex|dll)\b|^Analysis failed for '([^']+)'",
+                           re.IGNORECASE)
+
+
+def output_by_module(project: RecompProject, output: str) -> dict[str, str]:
+    """Splits codegen output into the part each module produced. Warnings and errors follow
+    the `start`/`phase <binary>` line of the module being analysed or written."""
+    sections: dict[str, list[str]] = {}
+    current = RecompProject.DEFAULT_MODULE
+    for line in output.splitlines():
+        if match := MODULE_MARKER.match(line):
+            current = project.module_for_binary(match.group(1)) if match.group(1) else match.group(2)
+            current = current or RecompProject.DEFAULT_MODULE
+        sections.setdefault(current, []).append(line)
+    return {module: "\n".join(lines) for module, lines in sections.items()}
+
+
+def fix_module(project: RecompProject, output: str, round_number: int) -> bool:
+    """Applies one round of fixes for a module; returns True when something changed."""
+    label = "" if project.module == RecompProject.DEFAULT_MODULE else f"{project.module}: "
+    branches = split_branches(output)
+    if branches:
+        blamed = seeds_splitting_functions(project, branches)
+        disable_seeds(project, blamed)
+        print(f"round {round_number}: {label}{len(branches)} split branches, {len(blamed)} seeds disabled")
+        if blamed:
+            return True
+    added = seed_unresolved_calls(project, output)
+    if added:
+        print(f"round {round_number}: {label}seeded {added} unresolved call targets")
+        return True
+    return False
+
+
+def fix_leftover_stubs(project: RecompProject, round_number: int) -> bool:
+    label = "" if project.module == RecompProject.DEFAULT_MODULE else f"{project.module}: "
+    leftover = unresolved_in_sources(project)
+    blamed = seeds_between(project, leftover)
+    if blamed:
+        disable_seeds(project, blamed)
+        print(f"round {round_number}: {label}{len(leftover)} unresolved stubs in generated code, "
+              f"{len(blamed)} seeds disabled")
+        return True
+    if leftover:
+        print(f"round {round_number}: {label}{len(leftover)} unresolved stubs left in generated code "
+              f"with no seed to blame; they need explicit bounds in functions.toml")
+    return False
 
 
 BRANCH_TARGET_REASON = "is a local branch target"
@@ -80,35 +126,25 @@ def main():
     args = parser.parse_args()
 
     project = RecompProject(args.game)
+    modules = {name: RecompProject(args.game, name) for name in project.module_names()}
     rexglue = find_rexglue(args.rexglue)
     log_path = project.root / "out" / "codegen.log"
 
     for round_number in range(1, args.rounds + 1):
         exit_code, output = run_codegen(rexglue, project, log_path)
-        branches = split_branches(output)
-        if branches:
-            blamed = seeds_splitting_functions(project, branches)
-            disable_seeds(project, blamed)
-            print(f"round {round_number}: {len(branches)} split branches, {len(blamed)} seeds disabled")
-            if blamed:
-                continue
-        added = seed_unresolved_calls(project, output)
-        if added:
-            print(f"round {round_number}: seeded {added} unresolved call targets")
+        sections = output_by_module(project, output)
+        changed = False
+        for name, module in modules.items():
+            changed |= fix_module(module, sections.get(name, ""), round_number)
+        if changed:
             continue
         if exit_code != 0:
             raise SystemExit(f"codegen failed without fixable errors; see {log_path}")
-        leftover = unresolved_in_sources(project)
-        blamed = seeds_between(project, leftover)
-        if blamed:
-            disable_seeds(project, blamed)
-            print(f"round {round_number}: {len(leftover)} unresolved stubs in generated code, "
-                  f"{len(blamed)} seeds disabled")
+        if any([fix_leftover_stubs(module, round_number) for module in modules.values()]):
             continue
-        if leftover:
-            print(f"round {round_number}: {len(leftover)} unresolved stubs left in generated code "
-                  f"with no seed to blame; they need explicit bounds in functions.toml")
-        print(f"round {round_number}: codegen clean ({len(project.seeds())} seeds); log {log_path}")
+        seeds = ", ".join(f"{name} {len(module.seeds())}" for name, module in modules.items())
+        print(f"round {round_number}: codegen clean ({seeds if len(modules) > 1 else len(project.seeds())} seeds); "
+              f"log {log_path}")
         return
     raise SystemExit(f"codegen still not clean after {args.rounds} rounds; see {log_path}")
 

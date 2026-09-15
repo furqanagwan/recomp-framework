@@ -67,6 +67,8 @@ def append_seeds(project: RecompProject, candidates: dict[int, str]) -> int:
 def main():
     parser = argparse.ArgumentParser(description="Find guest functions that codegen did not discover.")
     parser.add_argument("--game", required=True, help="game folder, e.g. fightNight4")
+    parser.add_argument("--module", default="default",
+                        help="DLL module to work on, named after its generated folder (e.g. Loader_DLL)")
     parser.add_argument("--dump", type=Path, help="image dump written with RECOMP_DUMP_IMAGE")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--gaps", action="store_true", help="scan unreached code after blr/bctr/b")
@@ -75,7 +77,7 @@ def main():
     parser.add_argument("--write", action="store_true", help="append candidates to config/functions.toml")
     args = parser.parse_args()
 
-    project = RecompProject(args.game)
+    project = RecompProject(args.game, args.module)
     image = GuestImage(args.dump or project.default_image_dump)
     known = set(project.function_starts()) | project.branch_labels() | project.disabled_seeds()
     if args.code_refs:

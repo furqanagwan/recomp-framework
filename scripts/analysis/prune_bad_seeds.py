@@ -92,9 +92,11 @@ def main():
     parser.add_argument("--image", type=Path,
                         help="image dump; also disable seeds that plain branches jump to")
     parser.add_argument("--game", required=True, help="game folder, e.g. fightNight4")
+    parser.add_argument("--module", default="default",
+                        help="DLL module to work on, named after its generated folder (e.g. Loader_DLL)")
     args = parser.parse_args()
 
-    project = RecompProject(args.game)
+    project = RecompProject(args.game, args.module)
     blamed = {}
     if args.codegen_log:
         branches = split_branches(args.codegen_log.read_text(errors="replace"))

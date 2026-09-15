@@ -1,6 +1,7 @@
 import os
 import re
 import struct
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,17 +25,75 @@ class Section:
 
 
 class RecompProject:
-    def __init__(self, game: str):
+    """A game folder, or one module of it: "default" is the entrypoint executable, and
+    each [[modules]] DLL is named after its out_directory_path (e.g. "Loader_DLL")."""
+
+    DEFAULT_MODULE = "default"
+
+    def __init__(self, game: str, module: str = DEFAULT_MODULE):
         self.root = REPOSITORY_ROOT / game
         if not (self.root / "CMakeLists.txt").exists():
             raise SystemExit(f"No game project at {self.root}")
-        self.generated = self.root / "generated" / "default"
-        self.functions_config = self.root / "config" / "functions.toml"
-        self.disabled_seeds_log = self.root / "config" / "disabled_function_seeds.txt"
+        self.game = game
+        self.module = module
+        self.manifest_path = next(self.root.glob("*_manifest.toml"), None)
+        if self.manifest_path is None:
+            raise SystemExit(f"No *_manifest.toml in {self.root}")
+        entry = self._manifest_entry(module)
+        self.generated = self.root / entry["out_directory_path"]
+        config = self.root / "config" if module == self.DEFAULT_MODULE else self.root / "config" / module
+        self.functions_config = config / "functions.toml"
+        self.disabled_seeds_log = config / "disabled_function_seeds.txt"
+        if module != self.DEFAULT_MODULE:
+            self._ensure_module_config()
+
+    def module_names(self) -> list[str]:
+        manifest = tomllib.loads(self.manifest_path.read_text())
+        return [self.DEFAULT_MODULE] + [Path(entry["out_directory_path"]).name for entry in manifest.get("modules", [])]
+
+    def module_for_binary(self, binary_name: str) -> str | None:
+        """Module whose executable file name (without extension) is `binary_name`."""
+        manifest = tomllib.loads(self.manifest_path.read_text())
+        entries = [(self.DEFAULT_MODULE, manifest["entrypoint"])] + [
+            (Path(entry["out_directory_path"]).name, entry) for entry in manifest.get("modules", [])]
+        for name, entry in entries:
+            if Path(entry["file_path"]).stem.lower() == binary_name.lower():
+                return name
+        return None
+
+    def _manifest_entry(self, module: str) -> dict:
+        manifest = tomllib.loads(self.manifest_path.read_text())
+        if module == self.DEFAULT_MODULE:
+            return manifest["entrypoint"]
+        for entry in manifest.get("modules", []):
+            if Path(entry["out_directory_path"]).name == module:
+                return entry
+        raise SystemExit(f"No module {module!r} in {self.manifest_path}; modules: {', '.join(self.module_names())}")
+
+    def _ensure_module_config(self) -> None:
+        """Gives a DLL module its own functions.toml and lists it in the module's manifest includes."""
+        if not self.functions_config.exists():
+            self.functions_config.parent.mkdir(parents=True, exist_ok=True)
+            self.functions_config.write_text("[functions]\n", newline="\n")
+        include = self.functions_config.relative_to(self.root).as_posix()
+        if include in self._manifest_entry(self.module).get("includes", []):
+            return
+        text = self.manifest_path.read_text()
+        block = re.search(r'^\[\[modules\]\]\n(?:(?!\[\[).*\n)*?out_directory_path = "[^"]*/'
+                          + re.escape(self.module) + r'"\n(?:(?!\[\[).*\n)*?includes = \[([^\]]*)\]',
+                          text, re.MULTILINE)
+        if block is None:
+            raise SystemExit(f"Could not find the includes of module {self.module} in {self.manifest_path}")
+        existing = block.group(1).strip().rstrip(",")
+        entries = f"{existing}, \"{include}\"" if existing else f"\"{include}\""
+        start, end = block.span(1)
+        self.manifest_path.write_text(text[:start] + entries + text[end:], newline="\n")
 
     @property
     def default_image_dump(self) -> Path:
-        return self.root / "out" / "image_dump.bin"
+        if self.module == self.DEFAULT_MODULE:
+            return self.root / "out" / "image_dump.bin"
+        return self.root / "out" / f"image_dump_{self.module}.bin"
 
     def init_source(self) -> Path:
         matches = sorted(self.generated.glob("*_init.cpp"))
@@ -46,6 +105,8 @@ class RecompProject:
         return sorted(self.generated.glob("*_recomp.*.cpp"))
 
     def function_starts(self) -> list[int]:
+        if not any(self.generated.glob("*_init.cpp")):
+            return []  # a module whose codegen hasn't succeeded yet
         text = self.init_source().read_text()
         return sorted(int(address, 16) for address in re.findall(r"\{ 0x([0-9A-F]{8}), ", text))
 
@@ -75,10 +136,11 @@ class RecompProject:
 class GuestImage:
     def __init__(self, dump: Path):
         self.bytes = dump.read_bytes()
+        self.base = self._read_image_base()
         self.sections = self._read_sections()
 
     def word(self, address: int) -> int:
-        offset = address - GUEST_IMAGE_BASE
+        offset = address - self.base
         if offset < 0 or offset + 4 > len(self.bytes):
             return 0
         return struct.unpack_from(">I", self.bytes, offset)[0]
@@ -149,9 +211,17 @@ class GuestImage:
         return {target for address, target, register in self.code_address_constants()
                 if not self.is_code_address(self.word(target)) and not self.used_as_base(address, register)}
 
-    def _read_sections(self) -> list[Section]:
+    def _read_image_base(self) -> int:
+        """ImageBase from the PE32 optional header: 0x82000000 for executables, higher for DLLs."""
         if self.bytes[:2] != b"MZ":
             raise SystemExit("Image dump does not start with an MZ header")
+        pe_offset = struct.unpack_from("<I", self.bytes, 0x3C)[0]
+        magic = struct.unpack_from("<H", self.bytes, pe_offset + 24)[0]
+        if magic != 0x10B:
+            return GUEST_IMAGE_BASE
+        return struct.unpack_from("<I", self.bytes, pe_offset + 24 + 28)[0]
+
+    def _read_sections(self) -> list[Section]:
         pe_offset = struct.unpack_from("<I", self.bytes, 0x3C)[0]
         count = struct.unpack_from("<H", self.bytes, pe_offset + 6)[0]
         optional_header_size = struct.unpack_from("<H", self.bytes, pe_offset + 20)[0]
@@ -162,7 +232,7 @@ class GuestImage:
             name = self.bytes[entry:entry + 8].rstrip(b"\0").decode("ascii", "replace")
             size, virtual_address = struct.unpack_from("<II", self.bytes, entry + 8)
             flags = struct.unpack_from("<I", self.bytes, entry + 36)[0]
-            sections.append(Section(name, GUEST_IMAGE_BASE + virtual_address, size,
+            sections.append(Section(name, self.base + virtual_address, size,
                                     bool(flags & PE_EXECUTABLE_SECTION)))
         return sections
 
