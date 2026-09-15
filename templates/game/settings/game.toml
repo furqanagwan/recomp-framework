@@ -1,0 +1,20 @@
+input_backend = "sdl"
+recomp_shared_controllers = true
+guide_button = false
+mnk_mode = false
+
+fullscreen = true
+present_letterbox = true
+
+video_mode_refresh_rate = 60.0
+vsync = true
+d3d12_allow_variable_refresh_rate_and_tearing = true
+
+resolution_scale = 1
+swap_post_effect = "none"
+
+d3d12_pipeline_creation_threads = 0
+async_shader_compilation = false
+render_target_path_d3d12 = "rov"
+render_target_path_vulkan = "fsi"
+gpu_allow_invalid_fetch_constants = true
