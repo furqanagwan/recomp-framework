@@ -11,6 +11,9 @@ from recomp_project import GuestImage, RecompProject
 SPLIT_BRANCH_WARNINGS = [
     re.compile(r"Unresolved conditional branch to 0x([0-9A-F]{8}) from 0x([0-9A-F]{8})"),
     re.compile(r"Jump target 0x([0-9A-F]{8}) unresolved at bctr 0x([0-9A-F]{8})"),
+    # A plain branch into the middle of another function: usually a gap seed
+    # placed after a bctr that is really the rest of the function before it.
+    re.compile(r"Unresolved b target 0x([0-9A-F]{8}) from 0x([0-9A-F]{8})"),
 ]
 
 
