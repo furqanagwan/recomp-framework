@@ -10,6 +10,7 @@ Used by:
 
 - [fightNightRecomped](https://github.com/furqanagwan/fightNightRecomped): Fight Night Round 4, Fight Night Champion
 - [liveRecomped](https://github.com/furqanagwan/liveRecomped): NBA LIVE 09, NBA LIVE 10
+- [skateRecomped](https://github.com/furqanagwan/skateRecomped): Skate, Skate 2
 
 The framework contains no game data and no generated code.
 
