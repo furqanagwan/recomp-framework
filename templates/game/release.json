@@ -1,0 +1,13 @@
+{
+  "supported_disc": "@DISPLAY_NAME@ (TODO region), title ID TODO",
+  "publisher": "@PUBLISHER@",
+  "system_requirements": [
+    "OS: Windows 10 version 2004 (build 19041) or Windows 11, 64-bit",
+    "Processor: 64-bit x86 CPU with SSE4.1",
+    "Graphics: DirectX 12 GPU (feature level 11_0)",
+    "Memory: 8 GB RAM recommended",
+    "Storage: TODO GB free for the game files, plus room for your ISO while it is copied",
+    "Software: Microsoft Visual C++ Redistributable 2015-2022 (x64)",
+    "Your own Xbox 360 disc image of the supported disc"
+  ]
+}

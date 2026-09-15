@@ -32,6 +32,7 @@ $replacements = @{
     '@RELEASE_YEAR@'   = $ReleaseYear
     '@PUBLISHER@'      = $Publisher
     '@LABEL@'          = $Label
+    '@FOLDER@'         = $Folder
 }
 $destinations = @{
     'CMakeLists.txt'           = 'CMakeLists.txt'
@@ -44,6 +45,9 @@ $destinations = @{
     'config\functions.toml'    = 'config\functions.toml'
     'gdk\MicrosoftGame.config' = 'gdk\MicrosoftGame.config'
     'resources\game.rc'        = "resources\$ProjectName.rc"
+    'README.md'                = 'README.md'
+    'release.json'             = 'release.json'
+    'docs\NOTES.md'            = 'docs\NOTES.md'
 }
 
 function Write-Template([string]$source, [string]$destination) {
@@ -69,4 +73,4 @@ $manifest = Join-Path $gameRoot "$($ProjectName)_manifest.toml"
 $manifestText = [IO.File]::ReadAllText($manifest) -replace 'includes = \[\]', "includes = [`n    `"config/codegen.toml`",`n    `"config/functions.toml`",`n]"
 [IO.File]::WriteAllText($manifest, $manifestText.Replace("`r`n", "`n"))
 
-Write-Host "Created $Folder ($DisplayName). Build with: .\framework\scripts\build.ps1 -Game $Folder"
+Write-Host "Created $Folder ($DisplayName). Next: .\framework\scripts\discover_functions.ps1 -Game $Folder, then fill in the README TODOs"

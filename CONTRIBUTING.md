@@ -74,33 +74,46 @@ rexglue extract "<disc>.iso" <FOLDER>\assets
     -DisplayName "<Display Name>" -ReleaseYear <year> -Label "EA SPORTS"
 ```
 
-The script runs `rexglue init`, renders `templates/game` and wires the codegen
+The script runs `rexglue init`, renders `templates/game` (including a README,
+`release.json` and `docs/NOTES.md` with TODOs to fill in) and wires the codegen
 config. Then:
 
-1. `python framework/scripts/analysis/stabilize_codegen.py --game <FOLDER>` runs
-   codegen until it is clean: it seeds unresolved call targets and disables seeds
-   that split functions, recording them in `config/disabled_function_seeds.txt`.
-2. Dump the loaded image with `RECOMP_DUMP_IMAGE=<FOLDER>/out/image_dump.bin`, run
-   `python framework/scripts/analysis/find_missing_functions.py --game <FOLDER> --write`
-   and again with `--gaps` and with `--code-refs` (functions whose address is only
-   built in code, the usual cause of `Call to invalid or unregistered function`), then
-   `python framework/scripts/analysis/prune_bad_seeds.py --game <FOLDER> --image <dump>`
-   to drop gap seeds that split loops. Repeat step 1.
-3. `python framework/scripts/analysis/find_short_switch_tables.py --game <FOLDER> --write`
-   finds jump tables codegen sized too small (the game dies with an illegal
-   instruction, `0xC000001D`, on a switch's out-of-range trap) and writes
-   `config/switch_tables.toml`; add it to the manifest `includes` and run codegen
-   again.
-4. Missing kernel imports at link time become stubs: in
+1. `.\framework\scripts\discover_functions.ps1 -Game <FOLDER>` runs the whole
+   function discovery workflow below for the executable and every DLL module,
+   and builds the game.
+2. `.\framework\scripts\run_game.ps1 -Game <FOLDER>` launches it and writes a
+   report to `out\runs\<time>\`: outcome, screenshots, errors, frequent warnings
+   and, for a crash, the faulting module and offset. With the
+   `win-amd64-relwithdebinfo` preset the crash is resolved to the generated
+   function and line.
+3. Missing kernel imports at link time become stubs: in
    `framework/common/src/kernel` when several games share them, otherwise in the
    game's `src/kernel`.
-5. Artwork: `rexglue init --project-name <name> --xex-path <FOLDER>\assets\default.xex achievements <FOLDER>\assets\default.xex <FOLDER>\metadata`,
+4. Artwork: `rexglue init --project-name <name> --xex-path <FOLDER>\assets\default.xex achievements <FOLDER>\assets\default.xex <FOLDER>\metadata`,
    upscale `metadata/icons/title.png` to `metadata/gdk_hd/title_1024.png`
    (Real-ESRGAN `realesrgan-x4plus`, 4x twice), run
    `.\framework\scripts\generate_artwork.ps1 -Game <FOLDER> -ProjectName <name>`,
    and copy the 1024 image to `<FOLDER>/docs/icon.png`.
-6. Write `<FOLDER>/README.md` (copy an existing game's) and keep research notes
-   in `<FOLDER>/docs/NOTES.md`.
+5. Fill in the TODOs in `<FOLDER>/README.md` and `release.json`, and keep research
+   notes in `<FOLDER>/docs/NOTES.md`.
+
+### What the discovery workflow does
+
+Each step is a script in `framework/scripts/analysis` you can also run on its own:
+
+| Step | Script | Fixes |
+| --- | --- | --- |
+| Stabilize | `stabilize_codegen.py` | Seeds unresolved call targets, disables seeds that split functions (recorded in `config/disabled_function_seeds.txt`), and checks the generated code for leftover unresolved-branch stubs |
+| Dump | `RECOMP_DUMP_IMAGE=<file>` (plus `RECOMP_DUMP_MODULE=<Name.xex>` for a DLL) | Writes the loaded image for the scans |
+| Scan | `find_missing_functions.py --write`, then with `--gaps` and `--code-refs` | Functions referenced from data, after returns, or whose address is only built in code (the usual cause of `Call to invalid or unregistered function`) |
+| Prune | `prune_bad_seeds.py --image <dump>` | Gap seeds that split loops |
+| Jump tables | `find_short_switch_tables.py --write` | Tables codegen sized too small (the game dies with `0xC000001D`, an illegal instruction, on a switch's out-of-range trap); adds `switch_tables.toml` to the manifest |
+
+Some functions still need explicit bounds in `functions.toml`
+(`"0xSTART" = { end = 0xEND }`): typically a leaf whose last block sits after its
+`blr`, or a switch whose cases each return. The stabilizer reports these as
+unresolved stubs with no seed to blame. `compare_runs.py` diffs two
+`run_game.ps1` reports and exits non-zero on a regression.
 
 Other codegen overrides (`switch_tables`, `midasm_hook`, `indirect_calls`,
 `invalid_instructions`, `rexcrt`) follow `rex::codegen::RecompilerConfig`; add a
@@ -135,7 +148,12 @@ python framework/scripts/analysis/find_missing_functions.py --game <FOLDER> --mo
 ## Code style
 
 - C++23, formatted with the repository's `.clang-format` (Google-based, 100
-  columns): `clang-format -i <files>`.
+  columns): `clang-format -i <files>`. The library builds without warnings; keep
+  it that way.
+- Analysis scripts need Python 3.11+ and have tests: `python -m pytest scripts/tests`.
+  Add a test with a synthetic image when you change a scan.
+- PowerShell scripts must run in Windows PowerShell 5.1: ASCII only, and native
+  tools that log to stderr are checked by exit code.
 - Match the surrounding code's naming and comment density; comments explain
   why, not what.
 - Commit messages: a short imperative subject line, then a body saying why.
