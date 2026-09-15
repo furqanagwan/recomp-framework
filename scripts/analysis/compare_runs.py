@@ -20,6 +20,7 @@ def describe(summary: dict) -> str:
 
 
 RANK = {"ran for the full time": 3, "exited normally": 2, "exited with an error": 1, "crashed": 0}
+FPS_REGRESSION_RATIO = 0.8
 
 
 def compare(before: dict, after: dict) -> tuple[list[str], bool]:
@@ -36,6 +37,15 @@ def compare(before: dict, after: dict) -> tuple[list[str], bool]:
     before_warnings = {w["message"] for w in before.get("warnings", [])}
     lines += [f"new frequent warning: {w['count']} x {w['message']}"
               for w in after.get("warnings", []) if w["message"] not in before_warnings]
+    before_perf, after_perf = before.get("performance"), after.get("performance")
+    if before_perf and after_perf:
+        lines.append(f"frame rate: {before_perf['average_fps']} -> {after_perf['average_fps']} fps average, "
+                     f"{before_perf['one_percent_low_fps']} -> {after_perf['one_percent_low_fps']} fps 1% low")
+        # Runs stop at different points of a game's attract loop, so only a
+        # large drop counts.
+        if after_perf["average_fps"] < before_perf["average_fps"] * FPS_REGRESSION_RATIO:
+            regression = True
+            lines.append("frame rate dropped")
     return lines, regression or bool(new_errors)
 
 

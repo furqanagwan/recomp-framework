@@ -259,3 +259,31 @@ def test_power_pc_decoding():
     assert PowerPc.signed_immediate(addi(3, 3, -8)) == -8
     assert PowerPc.is_add(add(12, 12, 0)) and PowerPc.add_operands(add(12, 12, 0)) == (12, 0)
     assert PowerPc.is_load(lwz(0, 4, 12)) and PowerPc.base_register(lwz(0, 4, 12)) == 12
+
+
+def test_compare_runs_flags_a_large_frame_rate_drop():
+    from compare_runs import compare
+
+    def run(fps):
+        return {"outcome": "ran for the full time", "seconds": 90, "errors": [], "warnings": [],
+                "performance": {"average_fps": fps, "one_percent_low_fps": fps / 2}}
+
+    assert compare(run(60.0), run(55.0))[1] is False
+    assert compare(run(60.0), run(40.0))[1] is True
+    # Reports from runtimes without frame stats still compare.
+    assert compare({**run(60.0), "performance": None}, run(40.0))[1] is False
+
+
+def test_gpu_trace_summary_flags_formats_and_names_skip_candidates():
+    from summarize_gpu_trace import summarize
+
+    def draw(ps, texture_format, pitch=1280):
+        return {"frame": 1, "draw": 0, "skipped": False, "surface_pitch": pitch,
+                "color_format": "k_8_8_8_8", "msaa": 1, "ps": ps,
+                "textures": [{"format": texture_format}]}
+
+    report = "\n".join(summarize([draw("AAAA", "k_DXT1"), draw("BBBB", "k_DXN"), draw("BBBB", "k_DXN", 640)]))
+    assert "3 draws over 1 frame(s)" in report
+    assert "k_DXN: 2  <- two-channel normal map" in report
+    assert "--gpu_skip_pixel_shaders=BBBB" in report
+    assert "AAAA" in report and "--gpu_skip_pixel_shaders=AAAA" not in report

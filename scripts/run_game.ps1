@@ -9,6 +9,7 @@ it when the time is up. The report in <Game>\out\runs\<timestamp>\ holds:
   summary.md / summary.json   outcome, crash location, errors and top warnings
   screenshot-<s>s.png         the game window at each requested time
   game.log                    the run's log file
+  frames.csv                  per-frame time, draws and resolves (SDKs with frame_stats_csv)
 
 When the game crashes, the Windows crash record names the faulting module and
 offset. If that module has symbols (a RelWithDebInfo preset, or a build with
@@ -48,9 +49,13 @@ using System.Runtime.InteropServices;
 public static class RecompRunWindow {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 }
 "@
 }
+# Without this, a scaled display reports window rectangles in scaled units and
+# the capture covers only the top-left part of the game window.
+[void][RecompRunWindow]::SetProcessDPIAware()
 
 function Save-WindowScreenshot([System.Diagnostics.Process]$process, [string]$path) {
     $process.Refresh()
@@ -62,13 +67,21 @@ function Save-WindowScreenshot([System.Diagnostics.Process]$process, [string]$pa
     if ($width -le 0 -or $height -le 0) { return $false }
     $bitmap = New-Object System.Drawing.Bitmap $width, $height
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $scaled = $null
     try {
         $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        $bitmap.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+        # Keep reports small: 1280 pixels wide is enough to judge a frame.
+        $image = $bitmap
+        if ($width -gt 1280) {
+            $scaled = New-Object System.Drawing.Bitmap $bitmap, 1280, ([int]($height * 1280 / $width))
+            $image = $scaled
+        }
+        $image.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
     }
     finally {
         $graphics.Dispose()
         $bitmap.Dispose()
+        if ($scaled) { $scaled.Dispose() }
     }
     return $true
 }
@@ -86,6 +99,14 @@ function Resolve-CrashLocation([string]$moduleName, [uint64]$offset) {
         Where-Object { $_ -and $_ -ne '??' -and $_ -notmatch '^\?\?:0' }
     if (-not $lines) { return $null }
     return ($lines -join ' <- ')
+}
+
+# Frame timing needs an SDK with the frame_stats_csv cvar; older runtimes
+# reject unknown options, so only pass it when the runtime knows it.
+$frameStats = Join-Path $runDir 'frames.csv'
+$runtime = Join-Path $buildDir 'rexruntime.dll'
+if ((Test-Path $runtime) -and (Select-String -Path $runtime -Pattern 'frame_stats_csv' -SimpleMatch -Quiet)) {
+    $GameArgs = @($GameArgs) + "--frame_stats_csv=$frameStats"
 }
 
 $started = Get-Date
@@ -141,6 +162,28 @@ $fatal = @($logLines | Where-Object { $_ -match '\[(critical|error)\]' } | ForEa
 $warnings = @($logLines | Where-Object { $_ -match '\[warning\]' } | ForEach-Object { Get-Shape (Get-Message $_) } |
     Group-Object | Sort-Object Count -Descending | Select-Object -First 10 | ForEach-Object { [ordered]@{ count = $_.Count; message = $_.Name } })
 
+function Get-FrameStats([string]$path) {
+    if (-not (Test-Path $path)) { return $null }
+    # The first second is loading and window creation; it would drag the averages.
+    $frames = @(Import-Csv $path | Select-Object -Skip 60)
+    if ($frames.Count -lt 30) { return $null }
+    $times = @($frames | ForEach-Object { [double]$_.frame_ms } | Sort-Object)
+    $total = ($times | Measure-Object -Sum).Sum
+    $slowCount = [math]::Max(1, [int]($times.Count / 100))
+    $slow = ($times | Select-Object -Last $slowCount | Measure-Object -Sum).Sum
+    $draws = @($frames | ForEach-Object { [int]$_.draws } | Sort-Object)
+    return [ordered]@{
+        frames        = $times.Count
+        average_fps   = [math]::Round(1000.0 * $times.Count / $total, 1)
+        one_percent_low_fps = [math]::Round(1000.0 * $slowCount / $slow, 1)
+        worst_frame_ms = [math]::Round($times[-1], 1)
+        stalls_over_100ms = @($times | Where-Object { $_ -gt 100 }).Count
+        median_draws  = $draws[[int]($draws.Count / 2)]
+        max_draws     = $draws[-1]
+    }
+}
+$performance = Get-FrameStats $frameStats
+
 $outcome = if (-not $exited) { 'ran for the full time' } elseif ($crash) { 'crashed' } elseif ($process.ExitCode -eq 0) { 'exited normally' } else { 'exited with an error' }
 $summary = [ordered]@{
     game        = $Game
@@ -153,6 +196,7 @@ $summary = [ordered]@{
     errors      = $fatal
     warnings    = $warnings
     screenshots = $shots
+    performance = $performance
 }
 $summary | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $runDir 'summary.json') -Encoding utf8
 
@@ -164,6 +208,10 @@ if ($crash) {
     $report += if ($crash.location) { "- Location: ``$($crash.location)``" } else { "- Location: no symbols; rebuild with the win-amd64-relwithdebinfo preset to resolve it" }
 }
 $report += "- Log: $($logLines.Count) lines$(if (-not $log) { ' (no log file found)' })"
+if ($performance) {
+    $report += "- Frame rate: $($performance.average_fps) fps average, $($performance.one_percent_low_fps) fps 1% low, worst frame $($performance.worst_frame_ms) ms, $($performance.stalls_over_100ms) stalls over 100 ms"
+    $report += "- Draws per frame: $($performance.median_draws) median, $($performance.max_draws) max"
+}
 $report += '', '## Errors', ''
 $report += if ($fatal) { $fatal | ForEach-Object { "- ``$_``" } } else { '- None' }
 $report += '', '## Most frequent warnings', ''
