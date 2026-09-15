@@ -1,11 +1,11 @@
 #include "recomp/app/game_recomp_app.h"
 
-#include <cstdlib>
-
 #include <rex/cvar.h>
 #include <rex/input/device_assignment.h>
 #include <rex/input/input_system.h>
+#include <rex/filesystem.h>
 #include <rex/logging.h>
+#include <rex/platform/env.h>
 #include <rex/system/kernel_state.h>
 #include <rex/ui/keybinds.h>
 #include <rex/ui/window.h>
@@ -85,7 +85,7 @@ std::optional<rex::PathConfig> GameRecompApp::OnFinalizePaths(const rex::PathCon
     return paths;
   }
   REXLOG_INFO("Game files not found at {}", game_data_root_.string());
-  if (std::getenv(kUnattendedInstallVariable)) {
+  if (rex::platform::env::get(kUnattendedInstallVariable)) {
     if (!InstallFromEnvironment(game_data_root_)) {
       app_context().QuitFromUIThread();
       return std::nullopt;
@@ -125,7 +125,8 @@ void GameRecompApp::OnShutdown() {
 bool GameRecompApp::InstallFromEnvironment(const std::filesystem::path& game_root) {
   InstallProgress progress;
   DiscImageInstaller installer;
-  if (installer.Install(std::getenv(kUnattendedInstallVariable), game_root, progress)) {
+  const auto disc_image = rex::platform::env::get(kUnattendedInstallVariable).value_or("");
+  if (installer.Install(rex::to_path(disc_image), game_root, progress)) {
     return true;
   }
   REXLOG_ERROR("Unattended install failed: {}", installer.error());
@@ -142,8 +143,8 @@ void GameRecompApp::InstallContentPackages() {
   std::error_code error;
   std::filesystem::create_directories(dlc_folder, error);
   int installed = installer.InstallFrom(dlc_folder);
-  if (const char* source = std::getenv(kContentPackageVariable)) {
-    installed += installer.InstallFrom(source);
+  if (const auto source = rex::platform::env::get(kContentPackageVariable)) {
+    installed += installer.InstallFrom(rex::to_path(*source));
   }
   if (installed > 0) {
     REXLOG_INFO("DLC: installed {} package(s)", installed);

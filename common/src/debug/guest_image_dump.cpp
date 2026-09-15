@@ -6,7 +6,9 @@
 #include <string>
 #include <thread>
 
+#include <rex/filesystem.h>
 #include <rex/logging.h>
+#include <rex/platform/env.h>
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -22,7 +24,7 @@ constexpr auto kModuleWaitLimit = std::chrono::minutes(3);
 
 void WriteImage(rex::Runtime& runtime, uint32_t base, uint32_t size, const char* output_path) {
   const uint8_t* image_bytes = runtime.memory()->TranslateVirtual(base);
-  if (std::FILE* file = std::fopen(output_path, "wb")) {
+  if (std::FILE* file = rex::filesystem::OpenFile(rex::to_path(output_path), "wb")) {
     std::fwrite(image_bytes, 1, size, file);
     std::fclose(file);
     REXLOG_INFO("Wrote guest image {:08X}+{:X} to {}", base, size, output_path);
@@ -55,16 +57,16 @@ void DumpModuleWhenLoaded(rex::Runtime& runtime, std::string module_name, std::s
 }  // namespace
 
 void GuestImageDump::WriteAndExitIfRequested(rex::Runtime& runtime, const rex::PPCImageInfo& image) {
-  const char* output_path = std::getenv(kEnvironmentVariable);
-  if (!output_path || !*output_path) {
+  const auto output_path = rex::platform::env::get(kEnvironmentVariable);
+  if (!output_path || output_path->empty()) {
     return;
   }
-  if (const char* module_name = std::getenv(kModuleEnvironmentVariable); module_name && *module_name) {
-    REXLOG_INFO("Waiting for module {} to load before dumping it", module_name);
-    DumpModuleWhenLoaded(runtime, module_name, output_path);
+  if (const auto module_name = rex::platform::env::get(kModuleEnvironmentVariable); module_name && !module_name->empty()) {
+    REXLOG_INFO("Waiting for module {} to load before dumping it", *module_name);
+    DumpModuleWhenLoaded(runtime, *module_name, *output_path);
     return;
   }
-  WriteImage(runtime, uint32_t(image.image_base), uint32_t(image.image_size), output_path);
+  WriteImage(runtime, uint32_t(image.image_base), uint32_t(image.image_size), output_path->c_str());
   std::_Exit(0);
 }
 

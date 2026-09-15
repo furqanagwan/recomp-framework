@@ -5,6 +5,7 @@
 
 #include <imgui.h>
 
+#include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/ui/windowed_app_context.h>
 
@@ -86,7 +87,7 @@ void DiscInstallDialog::DrawChooseImage() {
   }
   ImGui::SameLine();
   if (ImGui::Button("Install", ImVec2(120.0f, 0.0f)) && typed_path_[0] != '\0') {
-    BeginInstall(std::filesystem::u8path(typed_path_.data()));
+    BeginInstall(rex::to_path(typed_path_.data()));
     return;
   }
   ImGui::SameLine();

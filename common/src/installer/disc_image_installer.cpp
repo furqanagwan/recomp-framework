@@ -37,7 +37,7 @@ class EntryCopier {
         error_ = "Disc contains an unsafe file name: " + child->name();
         return false;
       }
-      const auto host_path = host_folder / std::filesystem::u8path(child->name());
+      const auto host_path = host_folder / rex::to_path(child->name());
       const bool copied = (child->attributes() & rex::filesystem::kFileAttributeDirectory)
                               ? CopyFolder(*child, host_path)
                               : CopyFile(*child, host_path);
