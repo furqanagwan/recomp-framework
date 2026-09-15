@@ -206,6 +206,13 @@ function Get-FrameStats([string]$path) {
     $slowCount = [math]::Max(1, [int]($times.Count / 100))
     $slow = ($times | Select-Object -Last $slowCount | Measure-Object -Sum).Sum
     $draws = @($frames | ForEach-Object { [int]$_.draws } | Sort-Object)
+    # Share of frame time the GPU command thread was busy (not waiting for the
+    # guest); older runtimes don't write gpu_wait_ms.
+    $gpuBusy = $null
+    if ($frames[0].PSObject.Properties.Name -contains 'gpu_wait_ms') {
+        $wait = ($frames | ForEach-Object { [double]$_.gpu_wait_ms } | Measure-Object -Sum).Sum
+        $gpuBusy = [math]::Round(100.0 * [math]::Max(0.0, $total - $wait) / $total)
+    }
     return [ordered]@{
         frames        = $times.Count
         average_fps   = [math]::Round(1000.0 * $times.Count / $total, 1)
@@ -214,6 +221,7 @@ function Get-FrameStats([string]$path) {
         stalls_over_100ms = @($times | Where-Object { $_ -gt 100 }).Count
         median_draws  = $draws[[int]($draws.Count / 2)]
         max_draws     = $draws[-1]
+        gpu_thread_busy_percent = $gpuBusy
     }
 }
 $performance = Get-FrameStats $frameStats
@@ -253,6 +261,9 @@ if ($relaunches) { $report += "- Title relaunched itself $relaunches time(s); th
 if ($performance) {
     $report += "- Frame rate: $($performance.average_fps) fps average, $($performance.one_percent_low_fps) fps 1% low, worst frame $($performance.worst_frame_ms) ms, $($performance.stalls_over_100ms) stalls over 100 ms"
     $report += "- Draws per frame: $($performance.median_draws) median, $($performance.max_draws) max"
+    if ($null -ne $performance.gpu_thread_busy_percent) {
+        $report += "- GPU command thread busy $($performance.gpu_thread_busy_percent)% of frame time (high: GPU emulation limits the frame rate; low: the guest does)"
+    }
 }
 $report += '', '## Errors', ''
 $report += if ($fatal) { $fatal | ForEach-Object { "- ``$_``" } } else { '- None' }
