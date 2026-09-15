@@ -27,6 +27,9 @@ if ($SdkDir) { $configureArguments += "-DREXSDK_DIR=$(Resolve-Path $SdkDir)" }
 
 Push-Location $gameRoot
 try {
+    # CMake and codegen log to stderr. Windows PowerShell 5.1 turns redirected
+    # stderr into errors, which 'Stop' would make fatal, so rely on exit codes.
+    $ErrorActionPreference = 'Continue'
     cmake @configureArguments
     if ($LASTEXITCODE -ne 0) { throw "Configure failed" }
     cmake --build --preset $Preset

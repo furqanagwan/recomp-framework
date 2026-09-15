@@ -54,8 +54,12 @@ function Write-Template([string]$source, [string]$destination) {
     [IO.File]::WriteAllText($target, $text.Replace("`r`n", "`n"))
 }
 
+# rexglue logs to stderr. Windows PowerShell 5.1 turns redirected stderr into
+# errors, which 'Stop' would make fatal, so rely on the exit code instead.
+$ErrorActionPreference = 'Continue'
 & $Rexglue init --project-name $ProjectName --project-root $gameRoot `
     --xex-path $entrypoint --game-root (Join-Path $gameRoot 'assets') --scan-dll
+$ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) { throw "rexglue init failed" }
 
 Remove-Item (Join-Path $gameRoot 'src') -Recurse -Force -ErrorAction SilentlyContinue
