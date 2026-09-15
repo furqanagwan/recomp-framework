@@ -68,6 +68,25 @@ Adding a game, the codegen workflow and artwork are described in
 | Controllers | Xbox, PlayStation, Switch and Steam Deck through SDL; all drive player 1 unless `recomp_shared_controllers = false` |
 | Portable mode | An empty `portable.txt` next to the executable keeps saves, cache and settings beside it |
 
+## ReXGlue fork
+
+`thirdparty/rexglue-sdk` tracks
+[furqanagwan/rexglue-sdk@main](https://github.com/furqanagwan/rexglue-sdk), which
+is upstream ReXGlue plus:
+
+- `rexglue extract <iso> <dir>`: extracts an Xbox 360 disc image, so projects
+  don't need extract-xiso
+- codegen: `vpkuwus`/`vpkuhus` read aliased sources before writing (VP6 video colour)
+- input: `InputSystem` entry points are serialized (concurrent polling crash)
+- gpu/d3d12: issued draws feed the debug overlay counter
+- kernel: 64-bit export arguments (XUIDs, file times) are no longer truncated,
+  which broke NBA LIVE 10 profile saves
+- platform: a UWP build (`REXGLUE_PLATFORM_UWP`) for Xbox Developer Mode
+- system: repeated export lookups reuse their thunk (upstream #420)
+- filesystem: relative guest paths resolve against `game:` (upstream #405)
+- upstream PRs #422, #423, #424 (Windows clone and install build fixes),
+  #384 (config loaded before path settings) and #382 (host FP exceptions stay masked)
+
 ## License
 
 BSD 3-Clause, see [LICENSE](LICENSE). ReXGlue is BSD 3-Clause and derived from
