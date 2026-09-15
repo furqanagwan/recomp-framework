@@ -55,7 +55,9 @@ def candidates_from_code_constants(image: GuestImage, function_starts: set[int])
 
 def append_seeds(project: RecompProject, candidates: dict[int, str]) -> int:
     existing = project.seeds()
-    new_lines = [f'"0x{address:08X}" = {{}}' for address in sorted(candidates) if address not in existing]
+    # Codegen rejects a seed that falls inside a function given explicit bounds.
+    new_lines = [f'"0x{address:08X}" = {{}}' for address in sorted(candidates)
+                 if address not in existing and not project.inside_explicit_range(address)]
     if new_lines:
         text = project.functions_config.read_text().rstrip("\n")
         project.functions_config.write_text(text + "\n" + "\n".join(new_lines) + "\n", newline="\n")

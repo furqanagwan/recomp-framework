@@ -9,6 +9,7 @@ REPOSITORY_ROOT = Path(os.environ.get("RECOMP_REPOSITORY_ROOT") or Path(__file__
 PE_EXECUTABLE_SECTION = 0x20000000
 GUEST_IMAGE_BASE = 0x82000000
 SEED_LINE = re.compile(r'^"0x([0-9A-F]{8})" = ', re.MULTILINE)
+BOUNDED_SEED_LINE = re.compile(r'^"0x([0-9A-F]{8})" = \{[^}\n]*\bend = 0x([0-9A-Fa-f]{8})', re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,13 @@ class RecompProject:
 
     def seeds(self) -> set[int]:
         return {int(address, 16) for address in SEED_LINE.findall(self.functions_config.read_text())}
+
+    def explicit_ranges(self) -> list[tuple[int, int]]:
+        """(start, end) of functions whose bounds are given in functions.toml with `end =`."""
+        return [(int(start, 16), int(end, 16)) for start, end in BOUNDED_SEED_LINE.findall(self.functions_config.read_text())]
+
+    def inside_explicit_range(self, address: int) -> bool:
+        return any(start < address < end for start, end in self.explicit_ranges())
 
 
 class GuestImage:
