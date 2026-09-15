@@ -5,6 +5,7 @@ on:
     paths:
       - "common/**"
       - "cmake/**"
+      - "thirdparty/**"
       - ".github/workflows/common.yml"
   workflow_dispatch:
     inputs:
