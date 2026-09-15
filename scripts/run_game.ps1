@@ -111,35 +111,69 @@ if ((Test-Path $runtime) -and (Select-String -Path $runtime -Pattern 'frame_stat
 
 $started = Get-Date
 $launch = @{ FilePath = $executable.FullName; WorkingDirectory = $buildDir; PassThru = $true }
-if ($GameArgs) { $launch.ArgumentList = $GameArgs }  # Start-Process rejects an empty list
+# Start-Process rejects an empty list, and Windows PowerShell joins the list with
+# spaces without quoting, so an argument holding a path with a space splits.
+$quotedArgs = @($GameArgs | ForEach-Object { if ($_ -match '\s' -and $_ -notmatch '"') { '"' + $_ + '"' } else { $_ } })
+if ($quotedArgs) { $launch.ArgumentList = $quotedArgs }
 $process = Start-Process @launch
 $null = $process.Handle  # keep the handle so ExitCode is available after exit
+$relaunches = 0
+
+# A title that relaunches itself (XamLoaderLaunchTitle on its own executable)
+# ends this process after starting a new one; follow the new one.
+function Get-RelaunchedProcess {
+    $logs = Get-ChildItem (Join-Path $buildDir 'logs') -Filter '*.log' -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -ge $started.AddSeconds(-2) }
+    if (-not ($logs | Select-String -Pattern 'Relaunching title' -SimpleMatch -Quiet)) { return $null }
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        $next = Get-Process -ErrorAction SilentlyContinue |
+            Where-Object { $_.Id -ne $process.Id -and $_.Path -eq $executable.FullName } |
+            Sort-Object StartTime -Descending | Select-Object -First 1
+        if ($next) { $null = $next.Handle; return $next }
+        Start-Sleep -Milliseconds 250
+    }
+    return $null
+}
+
+function Wait-Game([double]$untilSeconds) {
+    while ($true) {
+        $wait = $untilSeconds - ((Get-Date) - $started).TotalSeconds
+        if ($wait -le 0) { return $true }
+        if (-not $process.WaitForExit([int]($wait * 1000))) { return $true }
+        $next = Get-RelaunchedProcess
+        if (-not $next) { return $false }
+        $script:process = $next
+        $script:relaunches++
+        Write-Host "followed a title relaunch (process $($next.Id))"
+    }
+}
+
 $shots = @()
 foreach ($time in ($Screenshots | Where-Object { $_ -lt $Seconds } | Sort-Object)) {
-    $wait = $time - ((Get-Date) - $started).TotalSeconds
-    if ($wait -gt 0 -and $process.WaitForExit([int]($wait * 1000))) { break }
-    if ($process.HasExited) { break }
+    if (-not (Wait-Game $time)) { break }
     $path = Join-Path $runDir "screenshot-${time}s.png"
     if (Save-WindowScreenshot $process $path) { $shots += (Split-Path $path -Leaf) }
 }
-$remaining = $Seconds - ((Get-Date) - $started).TotalSeconds
-$exited = $process.HasExited -or ($remaining -gt 0 -and $process.WaitForExit([int]($remaining * 1000)))
+$exited = -not (Wait-Game $Seconds) -or $process.HasExited
 if (-not $exited) { Stop-Process -Id $process.Id -Force; $process.WaitForExit() }
 $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
 
-$log = Get-ChildItem (Join-Path $buildDir 'logs') -Filter '*.log' -ErrorAction SilentlyContinue |
-    Where-Object { $_.LastWriteTime -ge $started.AddSeconds(-2) } | Sort-Object LastWriteTime | Select-Object -Last 1
+# Each process of a relaunching title writes its own log; keep them all, in order.
+$logs = @(Get-ChildItem (Join-Path $buildDir 'logs') -Filter '*.log' -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -ge $started.AddSeconds(-2) } | Sort-Object LastWriteTime |
+    Select-Object -Last ($relaunches + 1))
+$log = $logs | Select-Object -Last 1
 $logLines = @()
-if ($log) {
-    Copy-Item $log.FullName (Join-Path $runDir 'game.log')
-    $logLines = Get-Content $log.FullName
-}
+foreach ($item in $logs) { $logLines += Get-Content $item.FullName }
+if ($logs) { $logLines | Set-Content (Join-Path $runDir 'game.log') -Encoding utf8 }
 
 $crash = $null
 if ($exited) {
     Start-Sleep -Seconds 2  # Windows Error Reporting writes the record asynchronously
     $record = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000; StartTime = $started } -ErrorAction SilentlyContinue |
-        Where-Object { $_.Message -match [regex]::Escape($executable.Name) } | Select-Object -First 1
+        Where-Object { $_.Message -match [regex]::Escape($executable.Name) -and
+                       $_.Message -match ('Faulting process id: 0x{0:x}\b' -f $process.Id) } |
+        Select-Object -First 1
     if ($record) {
         $fields = @{}
         foreach ($line in ($record.Message -split "`r?`n")) {
@@ -184,6 +218,11 @@ function Get-FrameStats([string]$path) {
 }
 $performance = Get-FrameStats $frameStats
 
+# Unimplemented imports the game reached. A bare stub leaves the caller's r3 as
+# the return value, so these are the first suspects for odd behaviour.
+$stubs = @($logLines | ForEach-Object { if ($_ -match '(__imp__[A-Za-z0-9_]+) STUB') { $Matches[1] -replace '^__imp__', '' } } |
+    Group-Object | Sort-Object Count -Descending | ForEach-Object { [ordered]@{ count = $_.Count; name = $_.Name } })
+
 $outcome = if (-not $exited) { 'ran for the full time' } elseif ($crash) { 'crashed' } elseif ($process.ExitCode -eq 0) { 'exited normally' } else { 'exited with an error' }
 $summary = [ordered]@{
     game        = $Game
@@ -191,12 +230,14 @@ $summary = [ordered]@{
     outcome     = $outcome
     seconds     = $duration
     exit_code   = if ($exited) { '0x{0:X8}' -f $process.ExitCode } else { $null }
+    relaunches  = $relaunches
     crash       = $crash
     log_lines   = $logLines.Count
     errors      = $fatal
     warnings    = $warnings
     screenshots = $shots
     performance = $performance
+    stubs       = $stubs
 }
 $summary | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $runDir 'summary.json') -Encoding utf8
 
@@ -208,6 +249,7 @@ if ($crash) {
     $report += if ($crash.location) { "- Location: ``$($crash.location)``" } else { "- Location: no symbols; rebuild with the win-amd64-relwithdebinfo preset to resolve it" }
 }
 $report += "- Log: $($logLines.Count) lines$(if (-not $log) { ' (no log file found)' })"
+if ($relaunches) { $report += "- Title relaunched itself $relaunches time(s); the report covers every process" }
 if ($performance) {
     $report += "- Frame rate: $($performance.average_fps) fps average, $($performance.one_percent_low_fps) fps 1% low, worst frame $($performance.worst_frame_ms) ms, $($performance.stalls_over_100ms) stalls over 100 ms"
     $report += "- Draws per frame: $($performance.median_draws) median, $($performance.max_draws) max"
@@ -216,6 +258,8 @@ $report += '', '## Errors', ''
 $report += if ($fatal) { $fatal | ForEach-Object { "- ``$_``" } } else { '- None' }
 $report += '', '## Most frequent warnings', ''
 $report += if ($warnings) { $warnings | ForEach-Object { "- $($_.count) x ``$($_.message)``" } } else { '- None' }
+$report += '', '## Stubs called', ''
+$report += if ($stubs) { $stubs | ForEach-Object { "- $($_.count) x ``$($_.name)``" } } else { '- None' }
 $report += '', '## Screenshots', ''
 $report += if ($shots) { $shots | ForEach-Object { "- $_" } } else { '- None (the window closed before the first one)' }
 $report | Set-Content (Join-Path $runDir 'summary.md') -Encoding utf8
