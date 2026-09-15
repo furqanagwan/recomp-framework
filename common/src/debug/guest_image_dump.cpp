@@ -16,7 +16,8 @@ namespace recomp {
 
 namespace {
 
-constexpr auto kModulePollInterval = std::chrono::milliseconds(250);
+// Tight: a DLL can crash its first thread within a millisecond of registering.
+constexpr auto kModulePollInterval = std::chrono::milliseconds(1);
 constexpr auto kModuleWaitLimit = std::chrono::minutes(3);
 
 void WriteImage(rex::Runtime& runtime, uint32_t base, uint32_t size, const char* output_path) {
