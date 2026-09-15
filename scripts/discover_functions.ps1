@@ -11,7 +11,8 @@ module in the manifest:
   3. seed functions referenced from data, found in code gaps, and built in code
   4. stabilize, prune seeds on local branch targets, stabilize again
   5. write under-counted jump tables to switch_tables.toml
-  6. final codegen and build
+  6. write the CRT setjmp/longjmp to setjmp.toml
+  7. final codegen and build
 
 A module the game never loads within the dump timeout is skipped and reported.
 Run it again after fixing a crash that stopped a module from loading.
@@ -103,6 +104,10 @@ foreach ($module in $dumped) {
 Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
 foreach ($module in $dumped) {
     Invoke-Analysis "${module}: jump tables" @('find_short_switch_tables.py', '--game', $Game, '--module', $module, '--image', (Get-DumpPath $module), '--write')
+}
+# Needs only generated code, so it covers modules that were not dumped too.
+foreach ($module in $modules.Keys) {
+    Invoke-Analysis "${module}: setjmp" @('find_setjmp.py', '--game', $Game, '--module', $module, '--write')
 }
 Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
 & (Join-Path $PSScriptRoot 'build.ps1') -Game $Game -Preset $Preset

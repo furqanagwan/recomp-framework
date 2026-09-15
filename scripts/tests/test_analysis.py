@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "analysis"))
 
 import recomp_project  # noqa: E402
 from find_missing_functions import candidates_from_code_constants, candidates_from_data_pointers  # noqa: E402
+from find_setjmp import find_jump_functions  # noqa: E402
 from find_short_switch_tables import short_tables  # noqa: E402
 from prune_bad_seeds import seeds_between, split_branches, unresolved_in_sources  # noqa: E402
 from recomp_project import GuestImage, PowerPc, RecompProject  # noqa: E402
@@ -227,6 +228,29 @@ def test_short_jump_table_is_found(game, tmp_path):
     assert tables[0].bctr == bctr
     assert tables[0].generated_cases == 3
     assert tables[0].labels == [case_label] * 5
+
+
+def _float_lines(mnemonic: str, base: str, offset: int = 0) -> str:
+    return "".join(f"\t// {mnemonic} f{14 + index},{offset + 8 * index}({base})\n" for index in range(18))
+
+
+def test_setjmp_and_longjmp_are_found_by_jmp_buf_use(game):
+    generated = game / "generated" / "default"
+    generated.mkdir(parents=True)
+    (generated / "game_recomp.0.cpp").write_text(
+        "DEFINE_REX_FUNC(sub_82010000) {\n\t// mflr r0\n" + _float_lines("stfd", "r3")
+        + "\t// std r1,144(r3)\n\t// blr \n}\n\n"
+        # The CRT longjmp copies the jmp_buf pointer before restoring from it.
+        + "DEFINE_REX_FUNC(sub_82010200) {\n\t// mr r7,r3\n" + _float_lines("lfd", "r7")
+        + "\t// ld r1,144(r7)\n\t// blr \n}\n\n"
+        # A context restore that reads from r4 is not the longjmp games call.
+        + "DEFINE_REX_FUNC(sub_82010400) {\n" + _float_lines("lfd", "r4", 408)
+        + "\t// ld r1,32(r4)\n\t// blr \n}\n\n"
+        # Ordinary epilogues restore r1 from the stack.
+        + "DEFINE_REX_FUNC(sub_82010600) {\n\t// lwz r1,0(r1)\n\t// blr \n}\n")
+    found = find_jump_functions(RecompProject("game"))
+    assert found.setjmp == [0x82010000]
+    assert found.longjmp == [0x82010200]
 
 
 def test_power_pc_decoding():
