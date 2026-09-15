@@ -68,6 +68,8 @@ foreach ($runtimeFile in 'rexruntime.dll', 'rexgpu-xenos.dll') {
     if (-not (Test-Path $source)) { throw "Missing $source" }
     Copy-Item $source $stage
 }
+# Recompiled guest DLL modules (manifest [[modules]]) build as <project>_<module>.dll.
+Get-ChildItem $buildDir -Filter "$($projectName)_*.dll" | ForEach-Object { Copy-Item $_.FullName $stage }
 $settings = Join-Path $buildDir "$projectName.toml"
 if (Test-Path $settings) { Copy-Item $settings $stage }
 
