@@ -106,6 +106,32 @@ Other codegen overrides (`switch_tables`, `midasm_hook`, `indirect_calls`,
 `invalid_instructions`, `rexcrt`) follow `rex::codegen::RecompilerConfig`; add a
 TOML file under `config/` and list it in the manifest `includes`.
 
+### Games with DLL modules
+
+Some games keep their code in guest DLLs (Top Spin 4: `Loader_DLL.xex`,
+`Swing_DLL.xex`). `rexglue init --scan-dll` only finds `.dll` files, so add other
+modules to the manifest by hand, using the path the game loads them from (build
+and run the executable alone; the log shows the failed load):
+
+```toml
+[[modules]]
+guest_path = "Loader_DLL.xex"
+file_path = "assets/Loader_DLL.xex"
+out_directory_path = "generated/Loader_DLL"
+includes = []
+```
+
+Each module is named after its generated folder and gets its own
+`config/<module>/functions.toml`, created and added to its `includes` the first
+time a script touches it. `stabilize_codegen.py` handles every module in one run.
+The other analysis scripts take `--module <name>` and read the module's dump,
+written once the game loads it:
+
+```
+RECOMP_DUMP_IMAGE=<FOLDER>/out/image_dump_Loader_DLL.bin RECOMP_DUMP_MODULE=Loader_DLL.xex
+python framework/scripts/analysis/find_missing_functions.py --game <FOLDER> --module Loader_DLL --write
+```
+
 ## Code style
 
 - C++23, formatted with the repository's `.clang-format` (Google-based, 100
