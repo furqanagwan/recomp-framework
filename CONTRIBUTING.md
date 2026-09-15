@@ -3,7 +3,8 @@
 This guide covers the framework and the game repositories that use it
 ([fightNightRecomped](https://github.com/furqanagwan/fightNightRecomped),
 [liveRecomped](https://github.com/furqanagwan/liveRecomped),
-[skateRecomped](https://github.com/furqanagwan/skateRecomped)). Each game repository
+[skateRecomped](https://github.com/furqanagwan/skateRecomped),
+[topSpinRecomped](https://github.com/furqanagwan/topSpinRecomped)). Each game repository
 links here from its own `CONTRIBUTING.md`.
 
 ## Ground rules
