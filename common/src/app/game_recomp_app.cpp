@@ -12,6 +12,7 @@
 #include <rex/ui/windowed_app_context.h>
 
 #include "recomp/debug/guest_image_dump.h"
+#include "recomp/debug/native_render_probe.h"
 #include "recomp/installer/content_package_installer.h"
 #include "recomp/installer/disc_image_installer.h"
 #include "recomp/settings/user_settings_store.h"
@@ -113,6 +114,7 @@ void GameRecompApp::OnPostLoadXexImage() {
 }
 
 void GameRecompApp::OnPostSetup() {
+  NativeRenderProbe::InstallIfRequested();
   menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
                       &app_context(), [this] { OpenSystemMenu(); });
 }

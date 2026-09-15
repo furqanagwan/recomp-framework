@@ -16,6 +16,7 @@ add_library(recomp_common STATIC
     src/app/game_paths.cpp
     src/app/game_recomp_app.cpp
     src/debug/guest_image_dump.cpp
+    src/debug/native_render_probe.cpp
     src/input/controller_menu_watcher.cpp
     src/input/guest_input_gate.cpp
     src/input/imgui_gamepad_bridge.cpp
