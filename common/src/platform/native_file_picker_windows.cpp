@@ -34,4 +34,4 @@ void NativeFilePicker::PickDiscImage(const std::string& title, PickedHandler on_
   on_picked(std::filesystem::path(selected));
 }
 
-}
+}  // namespace recomp

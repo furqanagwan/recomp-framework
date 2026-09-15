@@ -35,7 +35,7 @@ std::vector<std::filesystem::path> CollectPackageFiles(const std::filesystem::pa
   return files;
 }
 
-}
+}  // namespace
 
 ContentPackageInstaller::ContentPackageInstaller(rex::system::xam::ContentManager& content_manager,
                                                  uint32_t title_id)
@@ -66,9 +66,10 @@ bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& packag
     return false;
   }
   if (content_type == XContentType::kInstaller) {
-    REXLOG_WARN("DLC: skipping {}: title updates change game code and need a recompile from the "
-                "updated default.xex",
-                file_name);
+    REXLOG_WARN(
+        "DLC: skipping {}: title updates change game code and need a recompile from the "
+        "updated default.xex",
+        file_name);
     return false;
   }
   if (content_type != XContentType::kMarketplaceContent) {
@@ -92,7 +93,8 @@ bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& packag
 
   const auto display_name =
       rex::string::to_utf8(header->metadata.display_name(rex::system::XLanguage::kEnglish));
-  REXLOG_INFO("DLC: installing {} ({})", display_name.empty() ? file_name : display_name, file_name);
+  REXLOG_INFO("DLC: installing {} ({})", display_name.empty() ? file_name : display_name,
+              file_name);
   const auto result = content_manager_.InstallContent(package_path);
   if (XFAILED(result)) {
     REXLOG_ERROR("DLC: installing {} failed: {:08X}", file_name, result);
@@ -102,4 +104,4 @@ bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& packag
   return true;
 }
 
-}
+}  // namespace recomp

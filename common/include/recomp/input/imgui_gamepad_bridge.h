@@ -9,4 +9,4 @@ class ImGuiGamepadBridge {
   static void FeedPrimaryController(ImGuiIO& io);
 };
 
-}
+}  // namespace recomp

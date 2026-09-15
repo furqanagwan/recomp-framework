@@ -8,9 +8,9 @@ namespace recomp {
 
 namespace {
 
-constexpr ImGuiWindowFlags kFixedPanelFlags =
-    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
-    ImGuiWindowFlags_NoSavedSettings;
+constexpr ImGuiWindowFlags kFixedPanelFlags = ImGuiWindowFlags_NoCollapse |
+                                              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                                              ImGuiWindowFlags_NoSavedSettings;
 
 }
 
@@ -25,9 +25,10 @@ void DialogLayout::DrawBackdrop(const char* id, const ImGuiIO& io, float opacity
   ImGui::End();
 }
 
-void DialogLayout::BeginCenteredPanel(const char* title, const ImGuiIO& io, float max_width, bool* open) {
-  ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always,
-                          ImVec2(0.5f, 0.5f));
+void DialogLayout::BeginCenteredPanel(const char* title, const ImGuiIO& io, float max_width,
+                                      bool* open) {
+  ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+                          ImGuiCond_Always, ImVec2(0.5f, 0.5f));
   ImGui::SetNextWindowSize(ImVec2(std::min(max_width, io.DisplaySize.x - 40.0f), 0.0f));
   ImGui::Begin(title, open, kFixedPanelFlags);
 }
@@ -43,4 +44,4 @@ bool DialogLayout::BackPressed() {
          ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 }
 
-}
+}  // namespace recomp

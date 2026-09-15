@@ -16,4 +16,4 @@ class GamingRuntimeSession {
   bool active_ = false;
 };
 
-}
+}  // namespace recomp

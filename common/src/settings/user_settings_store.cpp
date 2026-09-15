@@ -56,4 +56,4 @@ bool UserSettingsStore::Save() const {
   return static_cast<bool>(out);
 }
 
-}
+}  // namespace recomp

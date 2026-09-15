@@ -36,7 +36,7 @@ winrt::fire_and_forget ShowDiscImagePicker(NativeFilePicker::PickedHandler on_pi
   on_picked(std::move(disc_image));
 }
 
-}
+}  // namespace
 
 bool NativeFilePicker::IsAvailable() {
   return true;
@@ -48,4 +48,4 @@ void NativeFilePicker::PickDiscImage(const std::string& title, PickedHandler on_
   ShowDiscImagePicker(std::move(on_picked));
 }
 
-}
+}  // namespace recomp

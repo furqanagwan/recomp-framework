@@ -35,7 +35,8 @@ void WriteImage(rex::Runtime& runtime, uint32_t base, uint32_t size, const char*
 
 // DLL modules load while the game runs, so wait for the module on a host thread.
 void DumpModuleWhenLoaded(rex::Runtime& runtime, std::string module_name, std::string output_path) {
-  std::thread([&runtime, module_name = std::move(module_name), output_path = std::move(output_path)] {
+  std::thread([&runtime, module_name = std::move(module_name),
+               output_path = std::move(output_path)] {
     const auto deadline = std::chrono::steady_clock::now() + kModuleWaitLimit;
     while (std::chrono::steady_clock::now() < deadline) {
       if (auto* kernel_state = runtime.kernel_state()) {
@@ -56,12 +57,14 @@ void DumpModuleWhenLoaded(rex::Runtime& runtime, std::string module_name, std::s
 
 }  // namespace
 
-void GuestImageDump::WriteAndExitIfRequested(rex::Runtime& runtime, const rex::PPCImageInfo& image) {
+void GuestImageDump::WriteAndExitIfRequested(rex::Runtime& runtime,
+                                             const rex::PPCImageInfo& image) {
   const auto output_path = rex::platform::env::get(kEnvironmentVariable);
   if (!output_path || output_path->empty()) {
     return;
   }
-  if (const auto module_name = rex::platform::env::get(kModuleEnvironmentVariable); module_name && !module_name->empty()) {
+  if (const auto module_name = rex::platform::env::get(kModuleEnvironmentVariable);
+      module_name && !module_name->empty()) {
     REXLOG_INFO("Waiting for module {} to load before dumping it", *module_name);
     DumpModuleWhenLoaded(runtime, *module_name, *output_path);
     return;

@@ -72,4 +72,4 @@ class DiscInstallDialog final : public rex::ui::ImGuiDialog {
   std::atomic<bool> worker_succeeded_{false};
 };
 
-}
+}  // namespace recomp

@@ -40,7 +40,7 @@ void FeedStickAxis(ImGuiIO& io, ImGuiKey negative, ImGuiKey positive, int16_t ax
   io.AddKeyAnalogEvent(positive, value > kStickDeadzone, NormalizedStickTravel(value));
 }
 
-}
+}  // namespace
 
 void ImGuiGamepadBridge::FeedPrimaryController(ImGuiIO& io) {
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad | ImGuiConfigFlags_NavEnableKeyboard;
@@ -53,8 +53,10 @@ void ImGuiGamepadBridge::FeedPrimaryController(ImGuiIO& io) {
   for (const auto& mapping : kButtonMappings) {
     io.AddKeyEvent(mapping.key, (buttons & mapping.button) != 0);
   }
-  FeedStickAxis(io, ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight, int16_t(gamepad.thumb_lx));
-  FeedStickAxis(io, ImGuiKey_GamepadLStickDown, ImGuiKey_GamepadLStickUp, int16_t(gamepad.thumb_ly));
+  FeedStickAxis(io, ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight,
+                int16_t(gamepad.thumb_lx));
+  FeedStickAxis(io, ImGuiKey_GamepadLStickDown, ImGuiKey_GamepadLStickUp,
+                int16_t(gamepad.thumb_ly));
 }
 
-}
+}  // namespace recomp

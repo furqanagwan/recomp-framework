@@ -60,7 +60,7 @@ std::optional<std::string> RunAndReadFirstLine(const std::string& command) {
   return output.empty() ? std::nullopt : std::optional<std::string>(output);
 }
 
-}
+}  // namespace
 
 bool NativeFilePicker::IsAvailable() {
 #if defined(__APPLE__)
@@ -80,4 +80,4 @@ void NativeFilePicker::PickDiscImage(const std::string& title, PickedHandler on_
   on_picked(std::nullopt);
 }
 
-}
+}  // namespace recomp

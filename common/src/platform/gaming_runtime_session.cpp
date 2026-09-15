@@ -33,7 +33,7 @@ bool IsGamingRuntimeInstalled() {
   return true;
 }
 
-}
+}  // namespace
 
 bool GamingRuntimeSession::Begin() {
   if (active_) {
@@ -72,4 +72,4 @@ void GamingRuntimeSession::End() {
 
 #endif
 
-}
+}  // namespace recomp

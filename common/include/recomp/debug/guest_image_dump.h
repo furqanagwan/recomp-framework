@@ -20,4 +20,4 @@ class GuestImageDump {
   static void WriteAndExitIfRequested(rex::Runtime& runtime, const rex::PPCImageInfo& image);
 };
 
-}
+}  // namespace recomp

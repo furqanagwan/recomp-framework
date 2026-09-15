@@ -12,4 +12,4 @@ struct GameDescriptor {
   std::optional<std::filesystem::path> development_game_root;
 };
 
-}
+}  // namespace recomp

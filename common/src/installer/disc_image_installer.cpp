@@ -83,7 +83,8 @@ class EntryCopier {
     for (size_t offset = 0; offset < entry.size();) {
       const size_t wanted = std::min(buffer_.size(), entry.size() - offset);
       size_t read = 0;
-      if (!XSUCCEEDED(guest_file.ReadSync(std::span<uint8_t>(buffer_.data(), wanted), offset, &read)) ||
+      if (!XSUCCEEDED(
+              guest_file.ReadSync(std::span<uint8_t>(buffer_.data(), wanted), offset, &read)) ||
           read == 0) {
         error_ = "Read error in " + entry.path() + "; the disc image may be damaged.";
         return false;
@@ -103,7 +104,7 @@ class EntryCopier {
   std::vector<uint8_t> buffer_;
 };
 
-}
+}  // namespace
 
 bool DiscImageInstaller::IsGameInstalled(const std::filesystem::path& game_root) {
   std::error_code error;
@@ -144,4 +145,4 @@ bool DiscImageInstaller::Install(const std::filesystem::path& disc_image,
   return true;
 }
 
-}
+}  // namespace recomp

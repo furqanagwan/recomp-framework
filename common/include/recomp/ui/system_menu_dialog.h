@@ -34,4 +34,4 @@ class SystemMenuDialog final : public rex::ui::ImGuiDialog {
   bool focus_first_option_ = true;
 };
 
-}
+}  // namespace recomp

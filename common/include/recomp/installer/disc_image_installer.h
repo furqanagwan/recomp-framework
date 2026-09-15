@@ -25,4 +25,4 @@ class DiscImageInstaller {
   std::string error_;
 };
 
-}
+}  // namespace recomp

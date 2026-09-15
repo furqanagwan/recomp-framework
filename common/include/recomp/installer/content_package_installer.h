@@ -27,4 +27,4 @@ class ContentPackageInstaller {
   uint32_t title_id_;
 };
 
-}
+}  // namespace recomp

@@ -26,8 +26,8 @@ class GameRecompApp : public rex::ReXApp {
   void OnPreSetup(rex::RuntimeConfig& config) override;
   void OnConfigureStyle(ImGuiStyle& imgui_style, rex::ui::Style& overlay_style) override;
   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override;
-  std::optional<rex::PathConfig> OnFinalizePaths(const rex::PathConfig& defaults,
-                                                 std::function<void(rex::PathConfig)> resume) override;
+  std::optional<rex::PathConfig> OnFinalizePaths(
+      const rex::PathConfig& defaults, std::function<void(rex::PathConfig)> resume) override;
   void OnPostLoadXexImage() override;
   void OnPostSetup() override;
   void OnShutdown() override;
@@ -51,4 +51,4 @@ class GameRecompApp : public rex::ReXApp {
   SettingsDialog* settings_dialog_ = nullptr;
 };
 
-}
+}  // namespace recomp

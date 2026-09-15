@@ -25,4 +25,4 @@ class UserSettingsStore {
   std::filesystem::path file_;
 };
 
-}
+}  // namespace recomp

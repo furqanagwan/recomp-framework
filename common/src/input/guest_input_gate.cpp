@@ -22,7 +22,7 @@ bool IsControllerIdle(const rex::input::X_INPUT_GAMEPAD& gamepad) {
          gamepad.right_trigger < kTriggerReleasedThreshold;
 }
 
-}
+}  // namespace
 
 void GuestInputGate::Install(rex::input::InputSystem* input) {
   g_input_system = input;
@@ -30,8 +30,7 @@ void GuestInputGate::Install(rex::input::InputSystem* input) {
     return;
   }
   input->SetActiveCallback([]() {
-    return t_reading_for_menu ||
-           (g_visible_menus.load() == 0 && !g_awaiting_button_release.load());
+    return t_reading_for_menu || (g_visible_menus.load() == 0 && !g_awaiting_button_release.load());
   });
 }
 
@@ -75,4 +74,4 @@ bool GuestInputGate::ReadControllerForMenu(rex::input::X_INPUT_GAMEPAD& gamepad)
   return true;
 }
 
-}
+}  // namespace recomp

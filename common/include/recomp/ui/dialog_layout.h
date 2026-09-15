@@ -13,4 +13,4 @@ class DialogLayout {
   static bool BackPressed();
 };
 
-}
+}  // namespace recomp

@@ -13,4 +13,4 @@ class MonochromeTheme {
   static void Apply(ImGuiStyle& imgui_style, rex::ui::Style& overlay_style);
 };
 
-}
+}  // namespace recomp

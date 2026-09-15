@@ -23,16 +23,16 @@ using Choice = std::pair<const char*, const char*>;
 constexpr float kPanelWidth = 620.0f;
 constexpr float kFooterButtonWidth = 120.0f;
 
-constexpr std::array<Choice, 4> kResolutionScales = {{
-    {"1", "1x (720p)"}, {"2", "2x (1440p)"}, {"3", "3x (2160p)"}, {"4", "4x (2880p)"}}};
-constexpr std::array<Choice, 3> kAntiAliasing = {{
-    {"none", "Off"}, {"fxaa", "FXAA"}, {"fxaa_extreme", "FXAA (extreme)"}}};
-constexpr std::array<Choice, 3> kD3D12RenderTargets = {{
-    {"rov", "Accurate (ROV)"}, {"rtv", "Fast (RTV)"}, {"", "SDK default"}}};
-constexpr std::array<Choice, 3> kVulkanRenderTargets = {{
-    {"fsi", "Accurate (FSI)"}, {"fbo", "Fast"}, {"", "SDK default"}}};
-constexpr std::array<Choice, 2> kInputBackends = {{
-    {"sdl", "SDL (Xbox, PlayStation, Switch, Steam Deck)"}, {"xinput", "XInput (Xbox only)"}}};
+constexpr std::array<Choice, 4> kResolutionScales = {
+    {{"1", "1x (720p)"}, {"2", "2x (1440p)"}, {"3", "3x (2160p)"}, {"4", "4x (2880p)"}}};
+constexpr std::array<Choice, 3> kAntiAliasing = {
+    {{"none", "Off"}, {"fxaa", "FXAA"}, {"fxaa_extreme", "FXAA (extreme)"}}};
+constexpr std::array<Choice, 3> kD3D12RenderTargets = {
+    {{"rov", "Accurate (ROV)"}, {"rtv", "Fast (RTV)"}, {"", "SDK default"}}};
+constexpr std::array<Choice, 3> kVulkanRenderTargets = {
+    {{"fsi", "Accurate (FSI)"}, {"fbo", "Fast"}, {"", "SDK default"}}};
+constexpr std::array<Choice, 2> kInputBackends = {
+    {{"sdl", "SDL (Xbox, PlayStation, Switch, Steam Deck)"}, {"xinput", "XInput (Xbox only)"}}};
 
 bool CheckboxForCvar(const char* label, std::string_view cvar) {
   bool value = rex::cvar::Query<bool>(cvar);
@@ -63,7 +63,7 @@ void ComboForCvar(const char* label, std::string_view cvar, std::span<const Choi
   ImGui::EndCombo();
 }
 
-}
+}  // namespace
 
 SettingsDialog::SettingsDialog(rex::ui::ImGuiDrawer* drawer, SettingsContext context)
     : ImGuiDialog(drawer), context_(std::move(context)) {
@@ -140,7 +140,8 @@ void SettingsDialog::DrawControlsTab() {
   ImGui::Spacing();
   ImGui::TextDisabled("System menu: press View + Menu together, or Esc.");
   CheckboxForCvar("Guide button also opens the system menu", "guide_button");
-  ImGui::TextWrapped("Leave off on Windows, Xbox mode and Steam Deck, where the system uses that button.");
+  ImGui::TextWrapped(
+      "Leave off on Windows, Xbox mode and Steam Deck, where the system uses that button.");
 }
 
 void SettingsDialog::DrawGameFilesTab() {
@@ -153,11 +154,13 @@ void SettingsDialog::DrawGameFilesTab() {
   ImGui::Spacing();
   ImGui::TextDisabled("DLC");
   ImGui::TextWrapped("%s", context_.dlc_folder.string().c_str());
-  ImGui::TextWrapped("Put downloadable content packages here; they are installed the next time the game starts.");
+  ImGui::TextWrapped(
+      "Put downloadable content packages here; they are installed the next time the game starts.");
   ImGui::Spacing();
-  ImGui::TextWrapped("%s", context_.portable
-                               ? "Portable mode is on."
-                               : "Create an empty portable.txt next to the executable to keep saves beside it.");
+  ImGui::TextWrapped(
+      "%s", context_.portable
+                ? "Portable mode is on."
+                : "Create an empty portable.txt next to the executable to keep saves beside it.");
   ImGui::TextWrapped("To reinstall, delete the game files folder and start the game again.");
 }
 
@@ -171,13 +174,15 @@ bool SettingsDialog::DrawFooter() {
     ImGui::TextDisabled("%s", status_.c_str());
   }
   if (ImGui::Button("Save", ImVec2(kFooterButtonWidth, 0.0f))) {
-    status_ = UserSettingsStore(context_.settings_file).Save() ? "Saved." : "Could not save settings.";
+    status_ =
+        UserSettingsStore(context_.settings_file).Save() ? "Saved." : "Could not save settings.";
   }
   ImGui::SameLine();
   const bool close_clicked = ImGui::Button("Close", ImVec2(kFooterButtonWidth, 0.0f));
   ImGui::SameLine();
   ImGui::TextDisabled("B / Esc close");
-  const bool back = !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopup) && DialogLayout::BackPressed();
+  const bool back =
+      !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopup) && DialogLayout::BackPressed();
   return close_clicked || back;
 }
 
@@ -190,4 +195,4 @@ bool SettingsDialog::HasPendingRestartChanges() const {
   return false;
 }
 
-}
+}  // namespace recomp

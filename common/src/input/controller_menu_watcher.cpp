@@ -44,8 +44,9 @@ class ViewMenuChord {
     if (triggered_) {
       return false;
     }
-    const auto gap = view_.pressed_at() > menu_.pressed_at() ? view_.pressed_at() - menu_.pressed_at()
-                                                             : menu_.pressed_at() - view_.pressed_at();
+    const auto gap = view_.pressed_at() > menu_.pressed_at()
+                         ? view_.pressed_at() - menu_.pressed_at()
+                         : menu_.pressed_at() - view_.pressed_at();
     triggered_ = gap <= kChordPressWindow;
     return triggered_;
   }
@@ -69,7 +70,7 @@ class GuideButtonPress {
   bool was_down_ = false;
 };
 
-}
+}  // namespace
 
 ControllerMenuWatcher::~ControllerMenuWatcher() {
   Stop();
@@ -116,4 +117,4 @@ void ControllerMenuWatcher::WatchLoop() {
   }
 }
 
-}
+}  // namespace recomp

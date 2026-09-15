@@ -18,7 +18,7 @@ bool MenuOption(const char* label) {
   return ImGui::Button(label, ImVec2(-1.0f, kOptionHeight));
 }
 
-}
+}  // namespace
 
 SystemMenuDialog::SystemMenuDialog(rex::ui::ImGuiDrawer* drawer, SystemMenuActions actions)
     : ImGuiDialog(drawer), actions_(std::move(actions)) {
@@ -101,4 +101,4 @@ void SystemMenuDialog::DrawExitConfirmation() {
   }
 }
 
-}
+}  // namespace recomp

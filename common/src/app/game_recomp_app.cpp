@@ -37,7 +37,7 @@ std::unique_ptr<rex::system::IInputSystem> CreateSharedControllerInput(bool tool
   return input;
 }
 
-}
+}  // namespace
 
 GameRecompApp::GameRecompApp(rex::ui::WindowedAppContext& context, GameDescriptor descriptor,
                              rex::PPCImageInfo image_info)
@@ -72,11 +72,12 @@ void GameRecompApp::OnCreateDialogs(rex::ui::ImGuiDrawer*) {
     game_window->SetTitle(descriptor_.display_name);
     game_window->SetCursorVisibility(rex::ui::Window::CursorVisibility::kAutoHidden);
   }
-  rex::ui::RegisterBind(kSystemMenuBind, "Escape", "Open the system menu", [this] { ToggleSystemMenu(); });
+  rex::ui::RegisterBind(kSystemMenuBind, "Escape", "Open the system menu",
+                        [this] { ToggleSystemMenu(); });
 }
 
-std::optional<rex::PathConfig> GameRecompApp::OnFinalizePaths(const rex::PathConfig& defaults,
-                                                              std::function<void(rex::PathConfig)> resume) {
+std::optional<rex::PathConfig> GameRecompApp::OnFinalizePaths(
+    const rex::PathConfig& defaults, std::function<void(rex::PathConfig)> resume) {
   rex::PathConfig paths = defaults;
   paths.game_data_root = paths_.ResolveGameRoot(defaults.game_data_root, descriptor_);
   game_data_root_ = paths.game_data_root;
@@ -93,16 +94,16 @@ std::optional<rex::PathConfig> GameRecompApp::OnFinalizePaths(const rex::PathCon
     return paths;
   }
 
-  DiscInstallDialog::Show(imgui_drawer(), app_context(),
-                          DiscInstallRequest{
-                              .game_display_name = descriptor_.display_name,
-                              .install_folder = game_data_root_,
-                              .owner_window = window() ? window()->GetNativeWindowHandle() : nullptr,
-                              .on_installed = [paths, resume = std::move(resume)]() mutable {
-                                resume(std::move(paths));
-                              },
-                              .on_quit = [this] { app_context().QuitFromUIThread(); },
-                          });
+  DiscInstallDialog::Show(
+      imgui_drawer(), app_context(),
+      DiscInstallRequest{
+          .game_display_name = descriptor_.display_name,
+          .install_folder = game_data_root_,
+          .owner_window = window() ? window()->GetNativeWindowHandle() : nullptr,
+          .on_installed = [paths,
+                           resume = std::move(resume)]() mutable { resume(std::move(paths)); },
+          .on_quit = [this] { app_context().QuitFromUIThread(); },
+      });
   return std::nullopt;
 }
 
@@ -112,8 +113,8 @@ void GameRecompApp::OnPostLoadXexImage() {
 }
 
 void GameRecompApp::OnPostSetup() {
-  menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()), &app_context(),
-                      [this] { OpenSystemMenu(); });
+  menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
+                      &app_context(), [this] { OpenSystemMenu(); });
 }
 
 void GameRecompApp::OnShutdown() {
@@ -165,39 +166,39 @@ void GameRecompApp::OpenSystemMenu() {
   if (system_menu_ || settings_dialog_) {
     return;
   }
-  system_menu_ = new SystemMenuDialog(
-      imgui_drawer(), SystemMenuActions{
-                          .game_display_name = descriptor_.display_name,
-                          .open_settings = [this] { OpenSettings(); },
-                          .exit_game =
-                              [this] {
-                                if (auto* game_window = window()) {
-                                  game_window->RequestClose();
-                                }
-                              },
-                          .on_closed = [this] { system_menu_ = nullptr; },
-                      });
+  system_menu_ =
+      new SystemMenuDialog(imgui_drawer(), SystemMenuActions{
+                                               .game_display_name = descriptor_.display_name,
+                                               .open_settings = [this] { OpenSettings(); },
+                                               .exit_game =
+                                                   [this] {
+                                                     if (auto* game_window = window()) {
+                                                       game_window->RequestClose();
+                                                     }
+                                                   },
+                                               .on_closed = [this] { system_menu_ = nullptr; },
+                                           });
 }
 
 void GameRecompApp::OpenSettings() {
   if (settings_dialog_) {
     return;
   }
-  settings_dialog_ = new SettingsDialog(
-      imgui_drawer(), SettingsContext{
-                          .settings_file = paths_.settings_file(),
-                          .game_data_root = game_data_root_,
-                          .user_data_root = paths_.user_data_root(),
-                          .dlc_folder = paths_.dlc_folder(),
-                          .portable = paths_.portable(),
-                          .apply_fullscreen =
-                              [this](bool fullscreen) {
-                                if (auto* game_window = window()) {
-                                  game_window->SetFullscreen(fullscreen);
-                                }
-                              },
-                          .on_closed = [this] { settings_dialog_ = nullptr; },
-                      });
+  settings_dialog_ =
+      new SettingsDialog(imgui_drawer(), SettingsContext{
+                                             .settings_file = paths_.settings_file(),
+                                             .game_data_root = game_data_root_,
+                                             .user_data_root = paths_.user_data_root(),
+                                             .dlc_folder = paths_.dlc_folder(),
+                                             .portable = paths_.portable(),
+                                             .apply_fullscreen =
+                                                 [this](bool fullscreen) {
+                                                   if (auto* game_window = window()) {
+                                                     game_window->SetFullscreen(fullscreen);
+                                                   }
+                                                 },
+                                             .on_closed = [this] { settings_dialog_ = nullptr; },
+                                         });
 }
 
-}
+}  // namespace recomp

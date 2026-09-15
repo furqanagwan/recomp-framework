@@ -22,7 +22,7 @@ std::string FormatGigabytes(uint64_t bytes) {
   return text;
 }
 
-}
+}  // namespace
 
 void DiscInstallDialog::Show(rex::ui::ImGuiDrawer* drawer, rex::ui::WindowedAppContext& app_context,
                              DiscInstallRequest request) {
@@ -65,8 +65,9 @@ void DiscInstallDialog::OnDraw(ImGuiIO& io) {
 }
 
 void DiscInstallDialog::DrawChooseImage() {
-  ImGui::TextWrapped("%s game files were not found. Select your own Xbox 360 disc image to install them.",
-                     request_.game_display_name.c_str());
+  ImGui::TextWrapped(
+      "%s game files were not found. Select your own Xbox 360 disc image to install them.",
+      request_.game_display_name.c_str());
   ImGui::Spacing();
   ImGui::TextDisabled("Install folder");
   ImGui::TextWrapped("%s", request_.install_folder.string().c_str());
@@ -76,7 +77,8 @@ void DiscInstallDialog::DrawChooseImage() {
   }
   ImGui::Spacing();
   ImGui::SetNextItemWidth(-1.0f);
-  ImGui::InputTextWithHint("##disc_image_path", "Path to .iso", typed_path_.data(), typed_path_.size());
+  ImGui::InputTextWithHint("##disc_image_path", "Path to .iso", typed_path_.data(),
+                           typed_path_.size());
 
   if (NativeFilePicker::IsAvailable()) {
     ImGui::BeginDisabled(pending_pick_ != nullptr);
@@ -161,11 +163,12 @@ void DiscInstallDialog::BeginInstall(const std::filesystem::path& disc_image) {
   worker_finished_ = false;
   worker_succeeded_ = false;
   stage_ = Stage::kInstalling;
-  REXLOG_INFO("Installing game files from {} to {}", disc_image.string(), request_.install_folder.string());
+  REXLOG_INFO("Installing game files from {} to {}", disc_image.string(),
+              request_.install_folder.string());
   worker_ = std::thread([this] {
     worker_succeeded_ = installer_.Install(disc_image_, request_.install_folder, progress_);
     worker_finished_ = true;
   });
 }
 
-}
+}  // namespace recomp

@@ -15,7 +15,7 @@ constexpr const char* kPortableMarkerFile = "portable.txt";
 constexpr const char* kPortableUserFolder = "user";
 constexpr const char* kWriteProbeFile = ".recomp_write_probe";
 
-}
+}  // namespace
 
 void GamePaths::Configure(rex::PathConfig& paths) {
   executable_folder_ = rex::filesystem::GetExecutableFolder();
@@ -70,4 +70,4 @@ void GamePaths::RedirectLogsToUserData(const std::string& app_name) const {
   rex::cvar::SetFlagByName("log_file", (log_folder / (app_name + ".log")).string());
 }
 
-}
+}  // namespace recomp

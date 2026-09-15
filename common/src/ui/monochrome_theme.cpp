@@ -91,7 +91,7 @@ void ApplyOverlayAccents(rex::ui::Style& overlay) {
   overlay.debug.muted_text = ImVec4(1.0f, 1.0f, 1.0f, 0.55f);
 }
 
-}
+}  // namespace
 
 void MonochromeTheme::Apply(ImGuiStyle& imgui_style, rex::ui::Style& overlay_style) {
   ImGui::StyleColorsDark(&imgui_style);
@@ -100,4 +100,4 @@ void MonochromeTheme::Apply(ImGuiStyle& imgui_style, rex::ui::Style& overlay_sty
   ApplyOverlayAccents(overlay_style);
 }
 
-}
+}  // namespace recomp

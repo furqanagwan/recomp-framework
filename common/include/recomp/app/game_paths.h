@@ -29,4 +29,4 @@ class GamePaths {
   std::filesystem::path user_data_root_;
 };
 
-}
+}  // namespace recomp

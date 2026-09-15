@@ -20,4 +20,4 @@ class NativeFilePicker {
   void* owner_window_;
 };
 
-}
+}  // namespace recomp

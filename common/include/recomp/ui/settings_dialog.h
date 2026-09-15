@@ -42,4 +42,4 @@ class SettingsDialog final : public rex::ui::ImGuiDialog {
   bool close_requested_ = false;
 };
 
-}
+}  // namespace recomp

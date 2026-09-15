@@ -48,4 +48,4 @@ class GuestInputGate {
   static bool ReadControllerForMenu(rex::input::X_INPUT_GAMEPAD& gamepad);
 };
 
-}
+}  // namespace recomp
