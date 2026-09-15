@@ -83,15 +83,20 @@ config. Then:
    and again with `--gaps`, then
    `python framework/scripts/analysis/prune_bad_seeds.py --game <FOLDER> --image <dump>`
    to drop gap seeds that split loops. Repeat step 1.
-3. Missing kernel imports at link time become stubs: in
+3. `python framework/scripts/analysis/find_short_switch_tables.py --game <FOLDER> --write`
+   finds jump tables codegen sized too small (the game dies with an illegal
+   instruction, `0xC000001D`, on a switch's out-of-range trap) and writes
+   `config/switch_tables.toml`; add it to the manifest `includes` and run codegen
+   again.
+4. Missing kernel imports at link time become stubs: in
    `framework/common/src/kernel` when several games share them, otherwise in the
    game's `src/kernel`.
-4. Artwork: `rexglue init --project-name <name> --xex-path <FOLDER>\assets\default.xex achievements <FOLDER>\assets\default.xex <FOLDER>\metadata`,
+5. Artwork: `rexglue init --project-name <name> --xex-path <FOLDER>\assets\default.xex achievements <FOLDER>\assets\default.xex <FOLDER>\metadata`,
    upscale `metadata/icons/title.png` to `metadata/gdk_hd/title_1024.png`
    (Real-ESRGAN `realesrgan-x4plus`, 4x twice), run
    `.\framework\scripts\generate_artwork.ps1 -Game <FOLDER> -ProjectName <name>`,
    and copy the 1024 image to `<FOLDER>/docs/icon.png`.
-5. Write `<FOLDER>/README.md` (copy an existing game's) and keep research notes
+6. Write `<FOLDER>/README.md` (copy an existing game's) and keep research notes
    in `<FOLDER>/docs/NOTES.md`.
 
 Other codegen overrides (`switch_tables`, `midasm_hook`, `indirect_calls`,
