@@ -122,9 +122,10 @@ TOML file under `config/` and list it in the manifest `includes`.
 ### Games with DLL modules
 
 Some games keep their code in guest DLLs (Top Spin 4: `Loader_DLL.xex`,
-`Swing_DLL.xex`). `rexglue init --scan-dll` only finds `.dll` files, so add other
-modules to the manifest by hand, using the path the game loads them from (build
-and run the executable alone; the log shows the failed load):
+`Swing_DLL.xex`). `rexglue init --scan-dll` adds every DLL module under the game
+root, `.dll` or `.xex`. The guest path it writes is the file's path under the game
+root; if the game loads the module from somewhere else (build and run the
+executable alone; the log shows the failed load), fix `guest_path` by hand:
 
 ```toml
 [[modules]]
