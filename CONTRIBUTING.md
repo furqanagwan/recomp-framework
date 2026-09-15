@@ -80,7 +80,8 @@ config. Then:
    that split functions, recording them in `config/disabled_function_seeds.txt`.
 2. Dump the loaded image with `RECOMP_DUMP_IMAGE=<FOLDER>/out/image_dump.bin`, run
    `python framework/scripts/analysis/find_missing_functions.py --game <FOLDER> --write`
-   and again with `--gaps`, then
+   and again with `--gaps` and with `--code-refs` (functions whose address is only
+   built in code, the usual cause of `Call to invalid or unregistered function`), then
    `python framework/scripts/analysis/prune_bad_seeds.py --game <FOLDER> --image <dump>`
    to drop gap seeds that split loops. Repeat step 1.
 3. `python framework/scripts/analysis/find_short_switch_tables.py --game <FOLDER> --write`

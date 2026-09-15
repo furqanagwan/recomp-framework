@@ -105,6 +105,42 @@ class GuestImage:
                     targets.add(value)
         return targets
 
+    def code_address_constants(self, window: int = 8):
+        """Yields (addi address, code address, register) for `lis rN,hi` ... `addi rM,rN,lo` pairs."""
+        for section in self.executable_sections():
+            end = section.start + section.size
+            for address in range(section.start, end, 4):
+                instruction = self.word(address)
+                if not PowerPc.is_lis(instruction):
+                    continue
+                register = PowerPc.destination_register(instruction)
+                high = PowerPc.signed_immediate(instruction) << 16
+                for follower in range(address + 4, min(address + 4 * window, end), 4):
+                    next_instruction = self.word(follower)
+                    if PowerPc.is_addi(next_instruction) and PowerPc.base_register(next_instruction) == register:
+                        target = (high + PowerPc.signed_immediate(next_instruction)) & 0xFFFFFFFF
+                        if target & 0x3 == 0 and self.is_code_address(target):
+                            yield follower, target, PowerPc.destination_register(next_instruction)
+                        break
+                    if PowerPc.destination_register(next_instruction) == register:
+                        break
+
+    def used_as_base(self, address: int, register: int, window: int = 8) -> bool:
+        """True when the register soon becomes a load base or an offset base (`add`), i.e. it
+        addresses a table or a computed jump inside the current function, not another function."""
+        for follower in range(address + 4, address + 4 * window, 4):
+            instruction = self.word(follower)
+            if PowerPc.is_load(instruction) and PowerPc.base_register(instruction) == register:
+                return True
+            if PowerPc.is_add(instruction) and register in PowerPc.add_operands(instruction):
+                return True
+        return False
+
+    def function_address_constants(self) -> set[int]:
+        """Code addresses built by lis/addi and not used as a table or jump base."""
+        return {target for address, target, register in self.code_address_constants()
+                if not self.is_code_address(self.word(target)) and not self.used_as_base(address, register)}
+
     def _read_sections(self) -> list[Section]:
         if self.bytes[:2] != b"MZ":
             raise SystemExit("Image dump does not start with an MZ header")
@@ -134,6 +170,45 @@ class PowerPc:
     @staticmethod
     def is_conditional_branch(instruction: int) -> bool:
         return (instruction >> 26) == 16 and (instruction & 0x3) == 0
+
+    # Opcodes of the D-form loads (lwz, lwzu, lbz, lbzu, lhz, lhzu, lha, lhau, lfs, lfsu, lfd, lfdu).
+    D_FORM_LOADS = {32, 33, 34, 35, 40, 41, 42, 43, 48, 49, 50, 51}
+    # Extended opcodes of the X-form indexed loads (lwzx, lbzx, lhzx, lhax, lfsx, lfdx).
+    X_FORM_LOADS = {23, 87, 279, 343, 535, 599}
+
+    @staticmethod
+    def is_lis(instruction: int) -> bool:
+        return (instruction >> 26) == 15 and PowerPc.base_register(instruction) == 0
+
+    @staticmethod
+    def is_addi(instruction: int) -> bool:
+        return (instruction >> 26) == 14
+
+    @classmethod
+    def is_load(cls, instruction: int) -> bool:
+        opcode = instruction >> 26
+        return opcode in cls.D_FORM_LOADS or (opcode == 31 and ((instruction >> 1) & 0x3FF) in cls.X_FORM_LOADS)
+
+    @staticmethod
+    def is_add(instruction: int) -> bool:
+        return (instruction >> 26) == 31 and ((instruction >> 1) & 0x1FF) == 266
+
+    @staticmethod
+    def add_operands(instruction: int) -> tuple[int, int]:
+        return (instruction >> 16) & 0x1F, (instruction >> 11) & 0x1F
+
+    @staticmethod
+    def destination_register(instruction: int) -> int:
+        return (instruction >> 21) & 0x1F
+
+    @staticmethod
+    def base_register(instruction: int) -> int:
+        return (instruction >> 16) & 0x1F
+
+    @staticmethod
+    def signed_immediate(instruction: int) -> int:
+        value = instruction & 0xFFFF
+        return value - 0x10000 if value & 0x8000 else value
 
     @classmethod
     def ends_function(cls, instruction: int) -> bool:

@@ -39,10 +39,12 @@ def seeds_splitting_functions(project: RecompProject, branches: set[tuple[int, i
 
 
 def seeds_on_local_branch_targets(project: RecompProject, image: GuestImage) -> dict[int, str]:
-    referenced_from_data = image.data_pointer_targets()
+    # Keep seeds whose address is taken, from data or built in code: those are
+    # real entry points even when a neighbouring stub also branches into them.
+    address_taken = image.data_pointer_targets() | image.function_address_constants()
     targets = image.local_branch_targets()
     return {seed: "is a local branch target"
-            for seed in project.seeds() if seed in targets and seed not in referenced_from_data}
+            for seed in project.seeds() if seed in targets and seed not in address_taken}
 
 
 def disable_seeds(project: RecompProject, blamed: dict[int, str]) -> None:
@@ -60,7 +62,7 @@ def main():
     parser.add_argument("codegen_log", type=Path, nargs="?", help="output of rexglue codegen")
     parser.add_argument("--image", type=Path,
                         help="image dump; also disable seeds that plain branches jump to")
-    parser.add_argument("--game", default="fightNight4", help="game folder, e.g. fightNight4")
+    parser.add_argument("--game", required=True, help="game folder, e.g. fightNight4")
     args = parser.parse_args()
 
     project = RecompProject(args.game)

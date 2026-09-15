@@ -38,6 +38,21 @@ def candidates_from_code_gaps(image: GuestImage, known: set[int]) -> dict[int, s
     return found
 
 
+def candidates_from_code_constants(image: GuestImage, function_starts: set[int]) -> dict[int, str]:
+    # A function whose address is only built in code (lis rN,hi / addi rN,rN,lo)
+    # and passed on or called through ctr is invisible to the data scan, and is
+    # often a label inside the function before it (a stub that falls into it).
+    found = {}
+    for address, target, base_register in image.code_address_constants():
+        if target in function_starts or target in found or image.word(target) == 0:
+            continue
+        if image.is_code_address(image.word(target)) or image.used_as_base(address, base_register):
+            continue  # a jump table, computed local jump or data kept in the text section
+        if PowerPc.ends_function(image.word(target - 4)) or PowerPc.is_unconditional_branch(image.word(target - 4)):
+            found[target] = f"address built at 0x{address:08X}"
+    return found
+
+
 def append_seeds(project: RecompProject, candidates: dict[int, str]) -> int:
     existing = project.seeds()
     new_lines = [f'"0x{address:08X}" = {{}}' for address in sorted(candidates) if address not in existing]
@@ -49,16 +64,24 @@ def append_seeds(project: RecompProject, candidates: dict[int, str]) -> int:
 
 def main():
     parser = argparse.ArgumentParser(description="Find guest functions that codegen did not discover.")
-    parser.add_argument("--game", default="fightNight4", help="game folder, e.g. fightNight4")
+    parser.add_argument("--game", required=True, help="game folder, e.g. fightNight4")
     parser.add_argument("--dump", type=Path, help="image dump written with RECOMP_DUMP_IMAGE")
-    parser.add_argument("--gaps", action="store_true", help="scan unreached code after blr/bctr/b")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--gaps", action="store_true", help="scan unreached code after blr/bctr/b")
+    mode.add_argument("--code-refs", action="store_true",
+                      help="scan code for lis/addi pairs that build a function address")
     parser.add_argument("--write", action="store_true", help="append candidates to config/functions.toml")
     args = parser.parse_args()
 
     project = RecompProject(args.game)
     image = GuestImage(args.dump or project.default_image_dump)
     known = set(project.function_starts()) | project.branch_labels() | project.disabled_seeds()
-    candidates = (candidates_from_code_gaps if args.gaps else candidates_from_data_pointers)(image, known)
+    if args.code_refs:
+        candidates = candidates_from_code_constants(image, set(project.function_starts()))
+    elif args.gaps:
+        candidates = candidates_from_code_gaps(image, known)
+    else:
+        candidates = candidates_from_data_pointers(image, known)
 
     print(f"{len(candidates)} candidate function starts")
     for address, reason in list(sorted(candidates.items()))[:40]:
