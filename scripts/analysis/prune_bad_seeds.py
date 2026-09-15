@@ -22,6 +22,32 @@ def split_branches(log_text: str) -> set[tuple[int, int]]:
             for pattern in SPLIT_BRANCH_WARNINGS for target, source in pattern.findall(log_text)}
 
 
+GENERATED_UNRESOLVED = re.compile(
+    r'REX_FATAL\("Unresolved (?:call|branch) from 0x([0-9A-F]{8}) to 0x([0-9A-F]{8})"\)')
+
+
+def unresolved_in_sources(project: RecompProject) -> set[tuple[int, int]]:
+    """(target, source) of branches codegen left as fatal stubs, from the generated code itself.
+    Codegen only logs these for files it rewrites, so a later no-op pass hides them."""
+    found = set()
+    for source in project.recompiled_sources():
+        for origin, target in GENERATED_UNRESOLVED.findall(source.read_text()):
+            found.add((int(target, 16), int(origin, 16)))
+    return found
+
+
+def seeds_between(project: RecompProject, branches: set[tuple[int, int]]) -> dict[int, str]:
+    """Seeds strictly between a branch and its target: they cut one function in two."""
+    seeds = project.seeds()
+    blamed = {}
+    for target, source in branches:
+        low, high = sorted((target, source))
+        for seed in seeds:
+            if low < seed <= high:
+                blamed.setdefault(seed, f"splits 0x{source:08X} -> 0x{target:08X}")
+    return blamed
+
+
 def containing_function(starts: list[int], address: int) -> int | None:
     index = bisect.bisect_right(starts, address) - 1
     return starts[index] if index >= 0 else None

@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from prune_bad_seeds import disable_seeds, seeds_splitting_functions, split_branches
+from prune_bad_seeds import (disable_seeds, seeds_between, seeds_splitting_functions, split_branches,
+                             unresolved_in_sources)
 from recomp_project import RecompProject
 
 UNRESOLVED_CALL = re.compile(r"^\s+0x([0-9A-Fa-f]{8}) from 0x[0-9A-Fa-f]{8}: .*target not in any function",
@@ -97,6 +98,16 @@ def main():
             continue
         if exit_code != 0:
             raise SystemExit(f"codegen failed without fixable errors; see {log_path}")
+        leftover = unresolved_in_sources(project)
+        blamed = seeds_between(project, leftover)
+        if blamed:
+            disable_seeds(project, blamed)
+            print(f"round {round_number}: {len(leftover)} unresolved stubs in generated code, "
+                  f"{len(blamed)} seeds disabled")
+            continue
+        if leftover:
+            print(f"round {round_number}: {len(leftover)} unresolved stubs left in generated code "
+                  f"with no seed to blame; they need explicit bounds in functions.toml")
         print(f"round {round_number}: codegen clean ({len(project.seeds())} seeds); log {log_path}")
         return
     raise SystemExit(f"codegen still not clean after {args.rounds} rounds; see {log_path}")
