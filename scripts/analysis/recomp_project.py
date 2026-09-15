@@ -75,19 +75,26 @@ class RecompProject:
         if not self.functions_config.exists():
             self.functions_config.parent.mkdir(parents=True, exist_ok=True)
             self.functions_config.write_text("[functions]\n", newline="\n")
-        include = self.functions_config.relative_to(self.root).as_posix()
+        self.ensure_manifest_include(self.functions_config)
+
+    def ensure_manifest_include(self, config: Path) -> None:
+        """Lists a config file in this module's manifest `includes` if it isn't already."""
+        include = config.relative_to(self.root).as_posix()
         if include in self._manifest_entry(self.module).get("includes", []):
             return
         text = self.manifest_path.read_text()
-        block = re.search(r'^\[\[modules\]\]\n(?:(?!\[\[).*\n)*?out_directory_path = "[^"]*/'
-                          + re.escape(self.module) + r'"\n(?:(?!\[\[).*\n)*?includes = \[([^\]]*)\]',
-                          text, re.MULTILINE)
+        if self.module == self.DEFAULT_MODULE:
+            header = r'^\[entrypoint\]\n'
+        else:
+            header = (r'^\[\[modules\]\]\n(?:(?!\[).*\n)*?out_directory_path = "[^"]*/'
+                      + re.escape(self.module) + r'"\n')
+        block = re.search(header + r'(?:(?!\[).*\n)*?includes = \[([^\]]*)\]', text, re.MULTILINE)
         if block is None:
-            raise SystemExit(f"Could not find the includes of module {self.module} in {self.manifest_path}")
-        existing = block.group(1).strip().rstrip(",")
-        entries = f"{existing}, \"{include}\"" if existing else f"\"{include}\""
+            raise SystemExit(f"Could not find the includes of {self.module} in {self.manifest_path}")
+        entries = re.findall(r'"([^"]*)"', block.group(1)) + [include]
+        listed = "".join(f'\n    "{entry}",' for entry in entries) + "\n"
         start, end = block.span(1)
-        self.manifest_path.write_text(text[:start] + entries + text[end:], newline="\n")
+        self.manifest_path.write_text(text[:start] + listed + text[end:], newline="\n")
 
     @property
     def default_image_dump(self) -> Path:

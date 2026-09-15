@@ -1,0 +1,111 @@
+<#
+.SYNOPSIS
+Runs the function discovery workflow for a game end to end.
+
+.DESCRIPTION
+The steps from CONTRIBUTING.md "Adding a game", for the executable and every DLL
+module in the manifest:
+
+  1. stabilize codegen (seed unresolved calls, disable seeds that split functions)
+  2. build, then dump each loaded image (a DLL is dumped once the game loads it)
+  3. seed functions referenced from data, found in code gaps, and built in code
+  4. stabilize, prune seeds on local branch targets, stabilize again
+  5. write under-counted jump tables to switch_tables.toml
+  6. final codegen and build
+
+A module the game never loads within the dump timeout is skipped and reported.
+Run it again after fixing a crash that stopped a module from loading.
+
+.EXAMPLE
+.\framework\scripts\discover_functions.ps1 -Game topspin4
+#>
+param(
+    [Parameter(Mandatory)][string]$Game,
+    [string]$Preset = "win-amd64-release",
+    [int]$DumpTimeoutSeconds = 120,
+    # Reuse existing image dumps instead of running the game again.
+    [switch]$KeepDumps
+)
+
+$ErrorActionPreference = 'Stop'
+$repositoryRoot = & (Join-Path $PSScriptRoot 'repository_root.ps1')
+$gameRoot = Join-Path $repositoryRoot $Game
+$analysis = Join-Path $PSScriptRoot 'analysis'
+$out = Join-Path $gameRoot 'out'
+$env:RECOMP_REPOSITORY_ROOT = $repositoryRoot
+
+function Invoke-Analysis([string]$label, [string[]]$arguments) {
+    Write-Host "== $label" -ForegroundColor Cyan
+    $ErrorActionPreference = 'Continue'
+    python (Join-Path $analysis $arguments[0]) @($arguments | Select-Object -Skip 1) 2>&1 |
+        ForEach-Object { "$_" } | Select-Object -Last 6 | Write-Host
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($code -ne 0) { throw "$label failed" }
+}
+
+function Get-Modules {
+    # name -> guest file the game loads ("" for the executable)
+    $json = python (Join-Path $analysis 'list_modules.py') --game $Game
+    if ($LASTEXITCODE -ne 0) { throw "Could not read the manifest in $gameRoot" }
+    $parsed = $json | ConvertFrom-Json
+    $modules = [ordered]@{}
+    foreach ($property in $parsed.PSObject.Properties) { $modules[$property.Name] = $property.Value }
+    $modules
+}
+
+function Get-DumpPath([string]$module) {
+    if ($module -eq 'default') { Join-Path $out 'image_dump.bin' } else { Join-Path $out "image_dump_$module.bin" }
+}
+
+function Save-ImageDump([string]$module, [string]$guestFile) {
+    $dump = Get-DumpPath $module
+    if ($KeepDumps -and (Test-Path $dump)) { return $true }
+    $executable = Get-ChildItem (Join-Path $out "build\$Preset\*.exe") | Select-Object -First 1
+    if (-not $executable) { throw "No executable in $out\build\$Preset" }
+    Remove-Item $dump -ErrorAction SilentlyContinue
+    $env:RECOMP_DUMP_IMAGE = $dump
+    if ($guestFile) { $env:RECOMP_DUMP_MODULE = $guestFile } else { Remove-Item env:RECOMP_DUMP_MODULE -ErrorAction SilentlyContinue }
+    try {
+        $process = Start-Process $executable.FullName -PassThru -WorkingDirectory $executable.DirectoryName
+        if (-not $process.WaitForExit($DumpTimeoutSeconds * 1000)) { Stop-Process -Id $process.Id -Force }
+    }
+    finally {
+        Remove-Item env:RECOMP_DUMP_IMAGE, env:RECOMP_DUMP_MODULE -ErrorAction SilentlyContinue
+    }
+    return (Test-Path $dump)
+}
+
+$modules = Get-Modules
+Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+& (Join-Path $PSScriptRoot 'build.ps1') -Game $Game -Preset $Preset
+
+$dumped = @()
+foreach ($module in $modules.Keys) {
+    if (Save-ImageDump $module $modules[$module]) {
+        $dumped += $module
+        Write-Host "== dumped $module" -ForegroundColor Cyan
+    }
+    else {
+        Write-Warning "$module was not dumped: the game did not load it within $DumpTimeoutSeconds s"
+    }
+}
+
+foreach ($module in $dumped) {
+    Invoke-Analysis "${module}: data pointers" @('find_missing_functions.py', '--game', $Game, '--module', $module, '--write')
+    Invoke-Analysis "${module}: code gaps" @('find_missing_functions.py', '--game', $Game, '--module', $module, '--gaps', '--write')
+    Invoke-Analysis "${module}: code-built addresses" @('find_missing_functions.py', '--game', $Game, '--module', $module, '--code-refs', '--write')
+}
+Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+foreach ($module in $dumped) {
+    Invoke-Analysis "${module}: prune seeds" @('prune_bad_seeds.py', '--game', $Game, '--module', $module, '--image', (Get-DumpPath $module))
+}
+Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+foreach ($module in $dumped) {
+    Invoke-Analysis "${module}: jump tables" @('find_short_switch_tables.py', '--game', $Game, '--module', $module, '--image', (Get-DumpPath $module), '--write')
+}
+Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+& (Join-Path $PSScriptRoot 'build.ps1') -Game $Game -Preset $Preset
+
+$skipped = @($modules.Keys | Where-Object { $_ -notin $dumped })
+Write-Host "Done. Discovered: $($dumped -join ', ')$(if ($skipped) { ". Not loaded, run again later: $($skipped -join ', ')" })"

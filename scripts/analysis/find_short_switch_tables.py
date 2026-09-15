@@ -128,7 +128,8 @@ def main():
     print(f"{len(tables)} short jump tables")
     if args.write and tables:
         config = write_config(project, tables)
-        print(f"wrote {config}; add it to the module's manifest includes if missing")
+        project.ensure_manifest_include(config)
+        print(f"wrote {config} and listed it in the manifest includes")
 
 
 if __name__ == "__main__":

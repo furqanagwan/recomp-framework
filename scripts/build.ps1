@@ -1,7 +1,21 @@
+<#
+.SYNOPSIS
+Configures and builds a game.
+
+.EXAMPLE
+.\framework\scripts\build.ps1 -Game fightNight4
+.\framework\scripts\build.ps1 -Game topspin4 -Preset win-amd64-relwithdebinfo
+.\framework\scripts\build.ps1 -Game skate2 -CMakeArgs '-DCMAKE_EXE_LINKER_FLAGS=-Wl,/DEBUG'
+#>
 param(
     [Parameter(Mandatory)][string]$Game,
     [string]$Preset = "win-amd64-release",
-    [string]$SdkDir = ""
+    # Build against a rexglue-sdk source tree instead of the installed SDK.
+    [string]$SdkDir = "",
+    # Build one target (or object file) instead of everything.
+    [string]$Target = "",
+    # Extra arguments for the configure step, e.g. linker flags for symbols.
+    [string[]]$CMakeArgs = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,17 +36,21 @@ function Enter-DeveloperEnvironment {
 
 Enter-DeveloperEnvironment
 
-$configureArguments = @('--preset', $Preset)
+$configureArguments = @('--preset', $Preset) + $CMakeArgs
 if ($SdkDir) { $configureArguments += "-DREXSDK_DIR=$(Resolve-Path $SdkDir)" }
+$buildArguments = @('--build', (Join-Path 'out\build' $Preset))
+if ($Target) { $buildArguments += @('--target', $Target) }
 
 Push-Location $gameRoot
 try {
     # CMake and codegen log to stderr. Windows PowerShell 5.1 turns redirected
     # stderr into errors, which 'Stop' would make fatal, so rely on exit codes.
     $ErrorActionPreference = 'Continue'
-    cmake @configureArguments
+    # Empty stdin: rc.exe waits forever on an inherited console input handle when
+    # the build runs from a non-interactive shell (CI, scripts, agents).
+    $null | cmake @configureArguments
     if ($LASTEXITCODE -ne 0) { throw "Configure failed" }
-    cmake --build --preset $Preset
+    $null | cmake @buildArguments
     if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 }
 finally {
