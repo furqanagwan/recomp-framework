@@ -85,7 +85,8 @@ config. Then:
    report to `out\runs\<time>\`: outcome, screenshots, errors, frequent warnings
    and, for a crash, the faulting module and offset. With the
    `win-amd64-relwithdebinfo` preset the crash is resolved to the generated
-   function and line.
+   function and line. On SDKs with frame stats it also reports average and 1% low
+   frame rate, stalls and draws per frame.
 3. Missing kernel imports at link time become stubs: in
    `framework/common/src/kernel` when several games share them, otherwise in the
    game's `src/kernel`.
@@ -108,6 +109,7 @@ Each step is a script in `framework/scripts/analysis` you can also run on its ow
 | Scan | `find_missing_functions.py --write`, then with `--gaps` and `--code-refs` | Functions referenced from data, after returns, or whose address is only built in code (the usual cause of `Call to invalid or unregistered function`) |
 | Prune | `prune_bad_seeds.py --image <dump>` | Gap seeds that split loops |
 | Jump tables | `find_short_switch_tables.py --write` | Tables codegen sized too small (the game dies with `0xC000001D`, an illegal instruction, on a switch's out-of-range trap); adds `switch_tables.toml` to the manifest |
+| setjmp | `find_setjmp.py --write` | The CRT `setjmp`/`longjmp`, written to `setjmp.toml`. Without them a guest `longjmp` returns into a host frame that no longer exists, and the function crashes on a zeroed register soon after (Top Spin 4 in libjpeg's error handler) |
 
 Some functions still need explicit bounds in `functions.toml`
 (`"0xSTART" = { end = 0xEND }`): typically a leaf whose last block sits after its
@@ -118,6 +120,30 @@ unresolved stubs with no seed to blame. `compare_runs.py` diffs two
 Other codegen overrides (`switch_tables`, `midasm_hook`, `indirect_calls`,
 `invalid_instructions`, `rexcrt`) follow `rex::codegen::RecompilerConfig`; add a
 TOML file under `config/` and list it in the manifest `includes`.
+
+## Debugging rendering
+
+The SDK has cvars for rendering bugs that work in release builds; pass them with
+`run_game.ps1 -GameArgs`:
+
+| Cvar | Use |
+| --- | --- |
+| `--frame_stats_csv=<file>` | One line per guest frame (time, draws, resolves) and an FPS summary in the log. `run_game.ps1` sets it and summarises it |
+| `--gpu_trace_frame=<N>` (`--gpu_trace_frame_count`, `--gpu_trace_path`) | One JSON line per draw of frame N: render target, shader hashes, texture formats and sizes |
+| `--gpu_skip_pixel_shaders=<hash>,...` | Drops draws by pixel shader hash |
+
+To find the draw behind an artifact, take a screenshot where it shows, trace that
+frame, and summarise the trace:
+
+```
+.\framework\scripts\run_game.ps1 -Game <FOLDER> -Seconds 60 -Screenshots 55 -GameArgs '--gpu_trace_frame=3000'
+python framework/scripts/analysis/summarize_gpu_trace.py <FOLDER>/out/build/win-amd64-release/gpu_trace.jsonl
+```
+
+The summary groups draws by pass and pixel shader and flags texture formats whose
+conversion commonly goes wrong (YUV, two-channel normal maps). Rerun with
+`--gpu_skip_pixel_shaders` set to a suspect's hash; when the artifact disappears
+from the screenshot, that shader's draws are the ones to investigate.
 
 ### Games with DLL modules
 
