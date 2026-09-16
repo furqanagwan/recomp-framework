@@ -5,6 +5,7 @@
 #include <string>
 
 #include <rex/kernel/xam/system_ui.h>
+#include "recomp/ui/settings_dialog.h"
 
 namespace rex {
 class Runtime;
@@ -41,7 +42,7 @@ class XboxGuide {
     std::string game_display_name;
     // Opens the settings screen at a section ("video", "controls") or the first
     // one when empty.
-    std::function<void(std::string)> open_settings;
+    SettingsContext settings;
     std::function<void()> exit_game;
     // The title's achievements, which the guide shows on its own screen.
     rex::system::AchievementManager* achievements = nullptr;

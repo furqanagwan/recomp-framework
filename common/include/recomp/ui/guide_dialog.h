@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -8,6 +9,8 @@
 #include <imgui.h>
 #include <rex/system/achievement_store.h>
 #include <rex/ui/imgui_dialog.h>
+#include "recomp/ui/guide_navigation.h"
+#include "recomp/ui/settings_dialog.h"
 
 namespace rex {
 class Runtime;
@@ -27,8 +30,7 @@ struct GuideTheme;
 
 struct GuideActions {
   std::string game_display_name;
-  std::function<void()> open_settings;
-  std::function<void()> open_controls;
+  SettingsContext settings;
   std::function<void()> exit_game;
   std::function<void()> on_closed;
   // The title's achievements, drawn on the guide's own screen. Null when the
@@ -53,6 +55,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void RequestClose() { close_requested_ = true; }
   // Opens straight onto the achievements list, for a game that asked for it.
   void ShowAchievements();
+  void ShowSettings(std::string section);
 
  protected:
   void OnDraw(ImGuiIO& io) override;
@@ -62,6 +65,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   enum class Page {
     kRoot,
     kAchievements,
+    kSettings,
     kExitConfirmation,
   };
 
@@ -81,6 +85,11 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   };
 
   void BuildEntries();
+  void SwitchTab(int direction);
+  void BuildSettings();
+  void ChangeSetting(int direction);
+  void SaveSettings();
+  void DrawSettings(ImDrawList* draw_list, ImVec2 top_left, float width);
   void LoadAchievements();
   bool HasAchievements() const;
 
@@ -115,6 +124,17 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   std::unique_ptr<rex::ui::AchievementIconCache> icons_;
 
   std::vector<Entry> entries_;
+  struct SettingRow {
+    std::string label;
+    std::string cvar;
+    std::vector<std::pair<std::string, std::string>> choices;
+    std::string description;
+  };
+  std::vector<SettingRow> setting_rows_;
+  std::map<std::string, std::string> settings_at_open_;
+  std::string settings_section_;
+  std::string settings_status_;
+  int setting_selected_ = 0;
   std::vector<AchievementRow> achievements_;
   bool achievements_loaded_ = false;
   int unlocked_count_ = 0;
@@ -125,6 +145,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   std::vector<ImGuiKey> masked_keys_;
 
   Page page_ = Page::kRoot;
+  GuideTab tab_ = GuideTab::kPlayer;
   int selected_ = 0;
   int achievement_selected_ = 0;
   int achievement_scroll_ = 0;

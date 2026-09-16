@@ -1,0 +1,100 @@
+# Inspecting dashboard scenes
+
+The guide can load artwork from `shrdres.xzp`, an individual XUI package, or a
+folder of packages/loose files using `--recomp_guide_resources=<path>`. Packages
+inside folders are recognized by `XUIZ` magic, including extensionless resources
+written by `rexglue resources`. Files are visited in sorted path order; duplicate
+basenames currently use the last file. This is an artwork loader, not an XUI
+scene renderer or a locale/URI resolver.
+
+The Metro palette is visually matched to the supplied guide reference (gray
+panels, slate tabs, dark green selection), not claimed to be extracted HUD
+colors. The guide and settings use Windows Segoe UI when available, replacing
+the scaled debug font. Supply `--recomp_guide_font=<TTF or OTF>` before startup
+to use another font; Segoe UI is a substitute, not a verified Xbox font match.
+
+Guide tabs are ordered Games, player, Settings. LB/L1 and RB/R1 move one tab
+per press without wrapping; keyboard Left/Right do the same. Games contains
+Achievements; Settings links to Scaling & Display, Controls and Game Files.
+Achievements retain Up/Down and PageUp/PageDown scrolling; bumpers navigate
+tabs. Exit confirmation keeps input modal. Tab-navigation boundary assertions
+can be checked with:
+
+```powershell
+clang++ -std=c++17 -fsyntax-only -I framework/common/include framework/common/tests/guide_navigation_test.cpp
+```
+
+## Reproduce the inspection
+
+Use a dashboard you supply. Keep extracted data in an ignored directory.
+
+```powershell
+rexglue resources 'path/to/dash.xex' -o 'work/packages'
+python framework/scripts/tools/dashboard_resources.py 'work/packages' 'work/inspection' --xuihelper 'path/to/XUIHelper.CLI.exe'
+```
+
+The output directory must be empty. The command unpacks every XUI package and
+converts `MPDashSkin.xur` and `MiniGamercard.xur` by default. Use repeated
+`--scene` patterns to select other scenes, or `--scene '*'` to attempt all scenes.
+Without `--xuihelper`, extraction and inventory still work. Conversion errors
+appear in the report and cause a nonzero exit status. Package virtual `..`
+components are mapped to `__parent__` directories; the inventory retains both
+the original name and extracted path.
+
+Outputs:
+
+- `files/<package>/`: resources, separated by package to retain provenance.
+- `xml/<package>/`: converted XUI scenes, including timelines and figure data.
+- `report.json`: package inventories, PNG sizes, SHA-256 hashes, and explicit
+  scene properties with element ancestry.
+- `report.md`: conversion status, text sizes, font properties and image references.
+
+[XUIHelper](https://github.com/SGCSam/XUIHelper) is a separately built GPL-3.0
+command-line converter; it is not bundled, linked into the runtime, or copied
+into this framework. Its documented XUR-to-XUI conversion is used as an offline
+inspection step. Build its CLI with `dotnet build XUIHelper.CLI -c Release`.
+
+## Metro 17559 observations
+
+Inspected the workspace's `Metro/V2/Retail/17559/dash.xex`:
+
+- 36 embedded resources: **35 XUI packages and one title database**.
+  The packages contain 5,035 files, including 363 XUR scenes.
+- `SharedUI/MPDashSkin.xur`: 518 reported elements, canvas 400 by 400.
+  Explicit point sizes: 12, 15, 16, 18, 20, 21 and 22. No explicit font face.
+- Its `Label_TabTitle_Centered` visual and text presenter are 420 by 47.
+  The presenter specifies PointSize 20, TextColor `0xffebebeb`,
+  DropShadowColor `0x7f0f0f0f`, TextStyle 1024, LineSpacingAdjust -2.
+  This is a dashboard label style, **not a measured guide side tab**.
+- `dashcomm/MiniGamercard.xur`: 43 reported elements. The canvas is 1120 by
+  770, while the scene is 323 by 39 at local position (0, 2, 0). Eight image
+  presenters are 32 by 32. It references mail, friend and community-star art;
+  it does not establish the guide header's gamer tile dimensions.
+- Neither scene explicitly selects a font face. Inheritance/default font
+  resolution remains necessary. PointSize must not simply be assumed to mean
+  ImGui pixels.
+- `ico_96x_gamerpic.png` (96 by 96) and `button_White.png` (26 by 26) are
+  in `dashcomm`, not `SharedUI`. Image dimensions alone do not establish their
+  intended display size or role in the guide.
+- `MPDashSkin` references `common://updefault.png`, `common://downdefault.png`,
+  `sharedres://loadingRing.png`, `ico_32x_FullScreen.png`, and an empty `file://`
+  placeholder. Its figures/timelines are retained in XML, not rasterized.
+- No `GuideMain.xur` was found among these package entries. The workspace
+  dashboard archive contains no `hud.xex`. The guide's actual HUD scenes are
+  still needed before replacing the approximate guide layout with measured
+  guide metrics. `controlp/GuideItemScene.xur` is not sufficient evidence of
+  the in-game guide: the same package contains television guide/recording art.
+
+These findings correct the earlier assumption that the dashboard's shared skin
+and mini gamercard alone establish the compatibility guide's layout. No guide
+dimensions or font substitutions were made from unrelated dashboard controls.
+
+## Validation
+
+```powershell
+python -m unittest discover -s framework/scripts/tools -p 'test_dashboard_resources.py' -v
+```
+
+Tests use synthetic packages and XML, not dashboard assets. The real inspection
+also checks both selected scenes through the external converter. A successful
+conversion is not a visual fidelity or runtime rendering test.

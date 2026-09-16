@@ -36,31 +36,41 @@ class Entry:
 
 def read(path: Path):
     data = path.read_bytes()
-    if data[:4] != b"XUIZ":
-        raise SystemExit(f"{path}: not a XUI package")
+    if len(data) < 0x16 or data[:4] != b"XUIZ":
+        raise ValueError(f"{path}: not a complete XUI package")
     version = struct.unpack_from(">I", data, 4)[0]
     count = struct.unpack_from(">H", data, 0x14)[0]
     if version not in (1, 3):
-        raise SystemExit(f"{path}: unsupported package version {version}")
+        raise ValueError(f"{path}: unsupported package version {version}")
 
     # [header][name table][data]; entry offsets are relative to the data.
     names_size = struct.unpack_from(">I", data, 0x10)[0]
     base = names_size + 0x16
+    if base > len(data):
+        raise ValueError(f"{path}: name table extends beyond package")
+
+    def require(offset, size):
+        if offset + size > base:
+            raise ValueError(f"{path}: truncated name table at {offset:#x}")
 
     entries = []
     offset = 0x17 if version == 1 else 0x16
     for index in range(count):
         if version == 1:
+            require(offset, 9)
             size = int.from_bytes(data[offset:offset + 3], "big")
             data_offset = struct.unpack_from(">I", data, offset + 3)[0]
             offset += 7
             name_length = struct.unpack_from("<H", data, offset)[0]
+            require(offset + 2, name_length * 2)
             name = data[offset + 2:offset + 2 + name_length * 2].decode("utf-16-le", "replace")
             offset += 2 + name_length * 2
         else:
+            require(offset, 9)
             size, data_offset = struct.unpack_from(">II", data, offset)
             offset += 8
             name_length = data[offset]
+            require(offset + 1, name_length)
             name = data[offset + 1:offset + 1 + name_length].decode("latin-1")
             offset += 1 + name_length
         if data_offset + base + size > len(data):
@@ -69,6 +79,29 @@ def read(path: Path):
             break
         entries.append(Entry(name, data_offset + base, size))
     return version, data, entries
+
+
+def extract(path: Path, out_dir: Path, *, virtual_parents=False):
+    """Extract only after every destination has been checked for traversal."""
+    version, data, entries = read(path)
+    root = out_dir.resolve()
+    targets = []
+    for entry in entries:
+        name = entry.name.replace("\\", "/")
+        # Some dashboard packages use virtual ../handles references. Preserve
+        # those entries under an explicit directory, never a filesystem parent.
+        if virtual_parents:
+            name = '/'.join('__parent__' if part == '..' else part for part in name.split('/'))
+        if not name or name.startswith("/") or ":" in name or ".." in name.split("/"):
+            raise ValueError(f"{path}: unsafe entry name {entry.name!r}")
+        target = (root / name).resolve()
+        if not target.is_relative_to(root) or target == root:
+            raise ValueError(f"{path}: entry escapes output directory: {entry.name!r}")
+        targets.append(target)
+    for entry, target in zip(entries, targets):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data[entry.offset:entry.offset + entry.size])
+    return targets
 
 
 def describe(entry: Entry, data: bytes) -> str:
@@ -96,11 +129,8 @@ def main():
         if len(sys.argv) < 4:
             raise SystemExit(__doc__)
         out_dir = Path(sys.argv[3])
-        for entry in entries:
-            target = out_dir / entry.name.replace("\\", "/")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data[entry.offset:entry.offset + entry.size])
-        print(f"extracted {len(entries)} files to {out_dir}")
+        targets = extract(package, out_dir)
+        print(f"extracted {len(targets)} files to {out_dir}")
         return
     raise SystemExit(__doc__)
 

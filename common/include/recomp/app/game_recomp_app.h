@@ -14,8 +14,6 @@
 
 namespace recomp {
 
-class SettingsDialog;
-
 class GameRecompApp : public rex::ReXApp {
  protected:
   GameRecompApp(rex::ui::WindowedAppContext& context, GameDescriptor descriptor,
@@ -24,6 +22,7 @@ class GameRecompApp : public rex::ReXApp {
   void OnConfigurePaths(rex::PathConfig& paths) override;
   void OnPostInitLogging() override;
   void OnPreSetup(rex::RuntimeConfig& config) override;
+  void OnConfigureFonts(ImFontAtlas* atlas) override;
   void OnConfigureStyle(ImGuiStyle& imgui_style, rex::ui::Style& overlay_style) override;
   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override;
   std::optional<rex::PathConfig> OnFinalizePaths(
@@ -38,7 +37,6 @@ class GameRecompApp : public rex::ReXApp {
   bool InstallFromEnvironment(const std::filesystem::path& game_root);
   void InstallContentPackages();
   void ToggleSystemMenu();
-  void OpenSettings(std::string section);
 
   GameDescriptor descriptor_;
   rex::PPCImageInfo image_info_;
@@ -47,7 +45,6 @@ class GameRecompApp : public rex::ReXApp {
   GamingRuntimeSession gaming_runtime_;
   ControllerMenuWatcher menu_watcher_;
   XboxGuide guide_;
-  SettingsDialog* settings_dialog_ = nullptr;
 };
 
 }  // namespace recomp

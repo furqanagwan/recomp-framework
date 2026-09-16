@@ -19,7 +19,7 @@ namespace recomp {
 //
 // Those are Microsoft's files and none of them ship here. The player points the
 // runtime at a copy they already own - a shrdres.xzp out of a dashboard or a
-// system update, or a folder of PNGs - through recomp_guide_resources, and the
+// system update, or a folder of extracted resources - through recomp_guide_resources, and the
 // guide picks the pieces it knows out of it. With nothing supplied the guide
 // draws its own shapes instead, so it always has a complete face.
 class GuideResources {
@@ -27,7 +27,7 @@ class GuideResources {
   explicit GuideResources(rex::ui::ImmediateDrawer* drawer);
   ~GuideResources();
 
-  // Loads from recomp_guide_resources, or from resources/ next to the game when
+  // Loads from recomp_guide_resources, or from resources/guide when
   // the cvar is empty. Safe to call more than once; only the first load runs.
   void LoadIfNeeded();
 

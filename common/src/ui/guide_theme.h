@@ -9,7 +9,7 @@ namespace recomp {
 // The two faces the 360 guide had over its life. A Series X shows a
 // backward-compatible title the later one, so that is what this opens with.
 //
-//   metro  - the 2011 dashboard: flat near-black panels, square edges, a solid
+//   metro  - the later guide: light gray panels, dark side tabs, a solid
 //            green band behind the selected row.
 //   blades - the launch dashboard: a green blade with rounded corners, lit from
 //            the top, the selection a lighter pane inside it.

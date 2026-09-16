@@ -13,6 +13,8 @@
 #include "recomp/input/imgui_gamepad_bridge.h"
 #include "recomp/settings/user_settings_store.h"
 #include "recomp/ui/dialog_layout.h"
+#include "recomp/ui/guide_fonts.h"
+#include "guide_theme.h"
 
 namespace recomp {
 
@@ -88,7 +90,21 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
     return;
   }
   ImGuiGamepadBridge::FeedPrimaryController(io);
-  DialogLayout::DrawBackdrop("##recomp_settings_backdrop", io, 1.0f);
+  if (GuideFont()) ImGui::PushFont(GuideFont());
+  const auto& theme = CurrentGuideTheme();
+  const std::pair<ImGuiCol, ImU32> colors[] = {
+      {ImGuiCol_Text, theme.text}, {ImGuiCol_TextDisabled, theme.text_dim},
+      {ImGuiCol_WindowBg, theme.panel_top}, {ImGuiCol_PopupBg, theme.panel_top},
+      {ImGuiCol_TitleBg, theme.tab_active_fill}, {ImGuiCol_TitleBgActive, theme.tab_active_fill},
+      {ImGuiCol_FrameBg, theme.tab_active_fill}, {ImGuiCol_FrameBgHovered, theme.panel_bottom},
+      {ImGuiCol_FrameBgActive, theme.panel_bottom}, {ImGuiCol_Button, theme.tab_active_fill},
+      {ImGuiCol_ButtonHovered, theme.panel_bottom}, {ImGuiCol_ButtonActive, theme.panel_bottom},
+      {ImGuiCol_Header, theme.tab_active_fill}, {ImGuiCol_HeaderHovered, theme.panel_bottom},
+      {ImGuiCol_HeaderActive, theme.panel_bottom}, {ImGuiCol_CheckMark, theme.accent},
+      {ImGuiCol_Tab, theme.tab_active_fill}, {ImGuiCol_TabHovered, theme.panel_bottom},
+      {ImGuiCol_TabSelected, theme.panel_bottom}};
+  for (const auto& [slot, color] : colors) ImGui::PushStyleColor(slot, color);
+  DialogLayout::DrawBackdrop("##recomp_settings_backdrop", io, 0.45f);
   bool open = true;
   DialogLayout::BeginCenteredPanel("Settings", io, kPanelWidth, &open);
 
@@ -117,6 +133,8 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
   }
   const bool close = DrawFooter();
   ImGui::End();
+  ImGui::PopStyleColor(static_cast<int>(std::size(colors)));
+  if (GuideFont()) ImGui::PopFont();
   if (!open || close) {
     Close();
   }

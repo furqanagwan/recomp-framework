@@ -14,6 +14,8 @@
 #include "recomp/input/controller_menu_watcher.h"
 #include "recomp/input/imgui_gamepad_bridge.h"
 #include "recomp/ui/guide_resources.h"
+#include "recomp/ui/guide_fonts.h"
+#include "recomp/settings/user_settings_store.h"
 
 #include "guide_theme.h"
 
@@ -44,6 +46,9 @@ constexpr ImGuiKey kWatchedKeys[] = {
     ImGuiKey_GamepadDpadUp,   ImGuiKey_GamepadDpadDown,
     ImGuiKey_GamepadL1,       ImGuiKey_GamepadR1,
     ImGuiKey_GamepadLStickUp, ImGuiKey_GamepadLStickDown,
+    ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadDpadRight,
+    ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight,
+    ImGuiKey_GamepadFaceLeft, ImGuiKey_S,
 };
 
 void Text(ImDrawList* draw_list, ImVec2 position, ImU32 color, const std::string& text) {
@@ -63,16 +68,17 @@ void TextOverGame(ImDrawList* draw_list, ImVec2 position, ImU32 color, ImU32 sha
   TextScaled(draw_list, position, color, text, scale);
 }
 
-// A tab's name runs down its edge on the console. One character to a line is
-// close enough at this size and needs no rotated glyphs.
+// Rotate the whole label clockwise, retaining normal glyph spacing and UTF-8.
 void TextDown(ImDrawList* draw_list, ImVec2 center, ImU32 color, const std::string& text) {
-  const float line = ImGui::GetFontSize() + 1.0f;
-  float y = center.y - line * static_cast<float>(text.size()) * 0.5f;
-  for (char character : text) {
-    const char letter[2] = {character, '\0'};
-    const ImVec2 size = ImGui::CalcTextSize(letter);
-    draw_list->AddText(ImVec2(center.x - size.x * 0.5f, y), color, letter);
-    y += line;
+  const ImVec2 size = ImGui::CalcTextSize(text.c_str());
+  const int first = draw_list->VtxBuffer.Size;
+  draw_list->AddText(ImVec2(center.x - size.x * 0.5f, center.y - size.y * 0.5f),
+                     color, text.c_str());
+  for (int i = first; i < draw_list->VtxBuffer.Size; ++i) {
+    ImVec2& position = draw_list->VtxBuffer[i].pos;
+    const float x = position.x - center.x;
+    const float y = position.y - center.y;
+    position = ImVec2(center.x - y, center.y + x);
   }
 }
 
@@ -146,6 +152,11 @@ GuideDialog::GuideDialog(rex::ui::ImGuiDrawer* drawer, GuideActions actions)
   }
   LoadAchievements();
   BuildEntries();
+  for (const auto& setting : UserSettingsStore::Settings()) {
+    if (setting.requires_restart) {
+      settings_at_open_[std::string(setting.cvar)] = rex::cvar::GetFlagByName(setting.cvar);
+    }
+  }
 }
 
 GuideDialog::~GuideDialog() = default;
@@ -184,28 +195,52 @@ void GuideDialog::LoadAchievements() {
 
 void GuideDialog::BuildEntries() {
   entries_.clear();
-  entries_.push_back({"Resume Game", "", nullptr, true, Page::kRoot});
-  if (HasAchievements()) {
+  if (tab_ == GuideTab::kGames) {
     Entry entry;
     entry.label = "Achievements";
-    entry.value = std::to_string(unlocked_count_) + "/" + std::to_string(achievements_.size());
     entry.closes_guide = false;
-    entry.opens = Page::kAchievements;
+    if (HasAchievements()) {
+      entry.value = std::to_string(unlocked_count_) + "/" + std::to_string(achievements_.size());
+      entry.opens = Page::kAchievements;
+    } else {
+      // A title with none still gets the row, as on a console; it leads nowhere.
+      entry.value = "None";
+    }
     entries_.push_back(std::move(entry));
+  } else if (tab_ == GuideTab::kSettings) {
+    if (!actions_.settings.settings_file.empty()) {
+      for (const auto& section : {std::pair{"Scaling & Display", "video"},
+                                  std::pair{"Controls", "controls"},
+                                  std::pair{"Game Files", "game_files"}}) {
+        const std::string target = section.second;
+        entries_.push_back({section.first, "", [this, target] {
+          ShowSettings(target);
+        }, false, Page::kSettings});
+      }
+    }
+  } else {
+    entries_.push_back({"Resume Game", "", nullptr, true, Page::kRoot});
+    entries_.push_back({"Leave Game", "", nullptr, false, Page::kExitConfirmation});
   }
-  if (actions_.open_settings) {
-    entries_.push_back({"Settings", "", actions_.open_settings, true, Page::kRoot});
-  }
-  if (actions_.open_controls) {
-    entries_.push_back({"Controls", "", actions_.open_controls, true, Page::kRoot});
-  }
-  entries_.push_back({"Leave Game", "", nullptr, false, Page::kExitConfirmation});
+}
+
+void GuideDialog::SwitchTab(int direction) {
+  const GuideTab next = AdjacentGuideTab(tab_, direction);
+  if (next == tab_) return;
+  tab_ = next;
+  page_ = Page::kRoot;
+  selected_ = 0;
+  BuildEntries();
 }
 
 void GuideDialog::ShowAchievements() {
-  if (HasAchievements()) {
-    page_ = Page::kAchievements;
+  if (!HasAchievements()) {
+    return;
   }
+  tab_ = GuideTab::kGames;
+  selected_ = 0;
+  BuildEntries();
+  page_ = Page::kAchievements;
 }
 
 rex::ui::ImmediateTexture* GuideDialog::Artwork(const std::string& name) {
@@ -255,10 +290,10 @@ bool GuideDialog::HandleInput(int& selection, int count, int page_rows) {
   if (Pressed({ImGuiKey_UpArrow, ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp}, true)) {
     selection = (selection + count - 1) % count;
   }
-  if (page_rows > 0 && Pressed({ImGuiKey_PageDown, ImGuiKey_GamepadR1}, true)) {
+  if (page_rows > 0 && Pressed({ImGuiKey_PageDown}, true)) {
     selection = std::min(selection + page_rows, count - 1);
   }
-  if (page_rows > 0 && Pressed({ImGuiKey_PageUp, ImGuiKey_GamepadL1}, true)) {
+  if (page_rows > 0 && Pressed({ImGuiKey_PageUp}, true)) {
     selection = std::max(selection - page_rows, 0);
   }
   selection = std::clamp(selection, 0, count - 1);
@@ -336,33 +371,25 @@ void GuideDialog::DrawChrome(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 pan
 }
 
 float GuideDialog::DrawTabs(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 panel_max) {
-  const float tab = theme_.tab_width;
-  const float inset = 10.0f;  // the side tabs stop short of the list's ends
-
-  // Left: Games, then the player's own tab against the list.
-  const ImVec2 games_min(panel_min.x, panel_min.y + inset);
-  const ImVec2 games_max(games_min.x + tab, panel_max.y - inset);
-  draw_list->AddRectFilled(games_min, games_max, theme_.tab_fill);
-  TextDown(draw_list, ImVec2((games_min.x + games_max.x) * 0.5f, (games_min.y + games_max.y) * 0.5f),
-           theme_.tab_text, "Games");
-
-  const ImVec2 player_min(games_max.x, panel_min.y + 2.0f);
-  const ImVec2 player_max(player_min.x + tab, panel_max.y - 2.0f);
-  draw_list->AddRectFilled(player_min, player_max, theme_.tab_active_fill);
-  TextDown(draw_list,
-           ImVec2((player_min.x + player_max.x) * 0.5f, (player_min.y + player_max.y) * 0.5f),
-           theme_.tab_active_text, REXCVAR_GET(recomp_gamertag));
-
-  // Right: Settings.
-  const ImVec2 settings_max(panel_max.x, panel_max.y - inset);
-  const ImVec2 settings_min(settings_max.x - tab, panel_min.y + inset);
-  draw_list->AddRectFilled(settings_min, settings_max, theme_.tab_fill);
-  TextDown(draw_list,
-           ImVec2((settings_min.x + settings_max.x) * 0.5f,
-                  (settings_min.y + settings_max.y) * 0.5f),
-           theme_.tab_text, "Settings");
-
-  return player_max.x;  // where the list starts
+  const float width = theme_.tab_width;
+  const int active = static_cast<int>(tab_);
+  const std::string labels[] = {"Games", REXCVAR_GET(recomp_gamertag), "Settings"};
+  for (int i = 0; i < 3; ++i) {
+    // Tabs up to the active one sit on the left; remaining tabs sit on the right.
+    const float x = i <= active ? panel_min.x + i * width
+                                : panel_max.x - (3 - i) * width;
+    const ImVec2 low(x, panel_min.y);
+    const ImVec2 high(x + width, panel_max.y);
+    draw_list->AddRectFilled(low, high, i == active ? theme_.tab_active_fill : theme_.tab_fill);
+    // Neighbouring tabs of the same colour still read as separate tabs.
+    draw_list->AddLine(ImVec2(high.x - 1.0f, low.y), ImVec2(high.x - 1.0f, high.y),
+                       theme_.separator);
+    std::string label = Trim(labels[i], panel_max.y - panel_min.y - 28.0f);
+    TextDown(draw_list, ImVec2(x + width * 0.5f, panel_min.y + 14.0f +
+                              ImGui::CalcTextSize(label.c_str()).x * 0.5f),
+             i == active ? theme_.tab_active_text : theme_.tab_text, label);
+  }
+  return panel_min.x + (active + 1) * width;
 }
 
 void GuideDialog::DrawEntries(ImDrawList* draw_list, ImVec2 top_left, float width) {
@@ -501,12 +528,14 @@ void GuideDialog::DrawHints(ImDrawList* draw_list, ImVec2 bottom_left, float wid
   };
   std::vector<Hint> hints;
   if (page_ != Page::kAchievements) {
-    hints.push_back({"A", theme_.accent, "Select"});
+    hints.push_back({"A", theme_.accent, page_ == Page::kSettings ? "Change" : "Select"});
   }
   hints.push_back({"B", theme_.button_b, page_ == Page::kRoot ? "Close" : "Back"});
   if (page_ == Page::kRoot && actions_.exit_game) {
     hints.push_back({"Y", IM_COL32(222, 178, 20, 255), "Leave Game"});
   }
+
+  if (page_ == Page::kSettings) hints.push_back({"X", IM_COL32(45, 120, 205, 255), "Save"});
 
   float total = 0.0f;
   for (const Hint& hint : hints) {
@@ -552,7 +581,10 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   float body_height = 0.0f;
   switch (page_) {
     case Page::kRoot:
-      body_height = theme_.entry_height * static_cast<float>(entries_.size());
+      body_height = theme_.entry_height * static_cast<float>(std::max(size_t{6}, entries_.size()));
+      break;
+    case Page::kSettings:
+      body_height = theme_.entry_height * 9.0f;
       break;
     case Page::kAchievements:
       panel_width = std::min(kAchievementsWidth, io.DisplaySize.x - 80.0f);
@@ -566,6 +598,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
                          (io.DisplaySize.y - body_height) * 0.5f);
   const ImVec2 panel_max(panel_min.x + panel_width, panel_min.y + body_height);
 
+  if (GuideFont()) ImGui::PushFont(GuideFont());
   ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
   ImGui::SetNextWindowSize(io.DisplaySize);
   ImGui::Begin("##recomp_guide", nullptr,
@@ -587,11 +620,14 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   }
 
   const float list_x = DrawTabs(draw_list, panel_min, panel_max);
-  const float list_width = panel_max.x - theme_.tab_width - list_x;
+  const float list_width = panel_width - 3.0f * theme_.tab_width;
   const ImVec2 list_min(list_x, panel_min.y);
   switch (page_) {
     case Page::kRoot:
       DrawEntries(draw_list, list_min, list_width);
+      break;
+    case Page::kSettings:
+      DrawSettings(draw_list, list_min, list_width);
       break;
     case Page::kAchievements:
       DrawAchievements(draw_list, list_min, list_width, visible_rows);
@@ -602,6 +638,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   }
   DrawHints(draw_list, ImVec2(panel_min.x, panel_max.y), panel_width);
   ImGui::End();
+  if (GuideFont()) ImGui::PopFont();
 
   // The controller state the guide sees on its first frames is whatever was
   // held when it opened - the chord that opened it, or a pad resting off
@@ -613,7 +650,31 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
     return;
   }
 
+  if (page_ != Page::kExitConfirmation) {
+    const bool left = page_ == Page::kSettings ? Pressed({ImGuiKey_GamepadL1}, false)
+        : Pressed({ImGuiKey_GamepadL1, ImGuiKey_LeftArrow}, false);
+    const bool right = page_ == Page::kSettings ? Pressed({ImGuiKey_GamepadR1}, false)
+        : Pressed({ImGuiKey_GamepadR1, ImGuiKey_RightArrow}, false);
+    if (left != right) {
+      SwitchTab(right ? 1 : -1);
+      return;
+    }
+  }
+
   const bool back = Pressed({ImGuiKey_Escape, ImGuiKey_GamepadFaceRight}, false);
+
+  if (page_ == Page::kSettings) {
+    if (back) { page_ = Page::kRoot; return; }
+    const bool chosen = HandleInput(setting_selected_, static_cast<int>(setting_rows_.size()), 0);
+    const bool left = Pressed({ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft,
+                                ImGuiKey_GamepadLStickLeft}, true);
+    const bool right = Pressed({ImGuiKey_RightArrow, ImGuiKey_GamepadDpadRight,
+                                 ImGuiKey_GamepadLStickRight}, true);
+    if (chosen) ChangeSetting(1);
+    else if (left != right) ChangeSetting(right ? 1 : -1);
+    if (Pressed({ImGuiKey_GamepadFaceLeft, ImGuiKey_S}, false)) SaveSettings();
+    return;
+  }
 
   if (page_ == Page::kAchievements) {
     HandleInput(achievement_selected_, static_cast<int>(achievements_.size()), visible_rows);
@@ -655,9 +716,14 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   if (!chosen) {
     return;
   }
+  if (entries_.empty()) return;
   const Entry& entry = entries_[static_cast<size_t>(selected_)];
   if (!entry.closes_guide) {
     page_ = entry.opens;
+    if (entry.activate) {
+      auto activate = entry.activate;
+      activate();
+    }
     if (page_ == Page::kExitConfirmation) {
       exit_choice_ = 1;
     }

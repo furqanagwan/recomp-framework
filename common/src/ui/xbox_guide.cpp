@@ -15,9 +15,9 @@ REXCVAR_DEFINE_DOUBLE(recomp_guide_open_after_seconds, 0.0, "Recomp",
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 REXCVAR_DEFINE_STRING(recomp_guide_open_page, "root", "Recomp",
-                      "Which screen recomp_guide_open_after_seconds opens on: root or "
-                      "achievements.")
-    .allowed({"root", "achievements"});
+                      "Which screen recomp_guide_open_after_seconds opens on: root, "
+                      "achievements, or settings.")
+    .allowed({"root", "achievements", "settings"});
 
 namespace recomp {
 
@@ -48,8 +48,11 @@ void XboxGuide::ScheduleDebugOpen() {
     std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
     actions_.on_ui_thread([this] {
       Open("recomp_guide_open_after_seconds");
-      if (menu_ && REXCVAR_GET(recomp_guide_open_page) == "achievements") {
+      const std::string page = REXCVAR_GET(recomp_guide_open_page);
+      if (menu_ && page == "achievements") {
         menu_->ShowAchievements();
+      } else if (menu_ && page == "settings") {
+        menu_->ShowSettings("video");
       }
     });
   }).detach();
@@ -73,8 +76,7 @@ void XboxGuide::Open(std::string_view reason) {
   menu_ = new GuideDialog(
       drawer_, GuideActions{
                    .game_display_name = actions_.game_display_name,
-                   .open_settings = [this] { actions_.open_settings(""); },
-                   .open_controls = [this] { actions_.open_settings("controls"); },
+                   .settings = actions_.settings,
                    .exit_game = actions_.exit_game,
                    .on_closed =
                        [this] {

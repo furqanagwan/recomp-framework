@@ -13,7 +13,7 @@
 
 REXCVAR_DEFINE_STRING(recomp_guide_resources, "", "Recomp",
                       "Artwork for the compatibility guide: an Xbox 360 XUI package (a "
-                      "shrdres.xzp the player already owns) or a folder of PNGs. Empty looks "
+                      "shrdres.xzp the player already owns) or a folder of extracted resources. Empty looks "
                       "for resources/guide next to the game, and falls back to drawn shapes.")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
@@ -96,16 +96,24 @@ void GuideResources::LoadIfNeeded() {
 
 void GuideResources::LoadFolder(const std::filesystem::path& path) {
   std::error_code ec;
+  std::vector<std::filesystem::path> files;
   for (const auto& entry : std::filesystem::recursive_directory_iterator(path, ec)) {
     if (!entry.is_regular_file(ec)) {
       continue;
     }
-    const std::string name = entry.path().filename().string();
-    if (ToLower(entry.path().extension().string()) == ".xzp") {
-      LoadPackage(entry.path());
+    files.push_back(entry.path());
+  }
+  // Stable precedence when several dashboard packages contain the same name.
+  std::sort(files.begin(), files.end());
+  for (const auto& file : files) {
+    auto bytes = ReadFile(file);
+    // rexglue resources preserves XEX resource names (SharedUI, dashcomm, ...)
+    // without adding an .xzp extension. Identify these packages by their magic.
+    if (bytes.size() >= 4 && std::memcmp(bytes.data(), "XUIZ", 4) == 0) {
+      LoadPackage(file);
       continue;
     }
-    AddFile(name, ReadFile(entry.path()));
+    AddFile(file.filename().string(), std::move(bytes));
   }
 }
 

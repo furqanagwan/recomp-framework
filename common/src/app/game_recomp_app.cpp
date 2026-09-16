@@ -20,6 +20,7 @@
 #include "recomp/ui/monochrome_theme.h"
 #include "recomp/ui/settings_dialog.h"
 #include "recomp/ui/xbox_guide.h"
+#include "recomp/ui/guide_fonts.h"
 
 REXCVAR_DECLARE(bool, recomp_shared_controllers);
 
@@ -62,6 +63,10 @@ void GameRecompApp::OnPreSetup(rex::RuntimeConfig& config) {
   if (REXCVAR_GET(recomp_shared_controllers)) {
     config.input_factory = CreateSharedControllerInput;
   }
+}
+
+void GameRecompApp::OnConfigureFonts(ImFontAtlas* atlas) {
+  ConfigureGuideFonts(atlas);
 }
 
 void GameRecompApp::OnConfigureStyle(ImGuiStyle& imgui_style, rex::ui::Style& overlay_style) {
@@ -118,7 +123,16 @@ void GameRecompApp::OnPostSetup() {
   guide_.Install(imgui_drawer(),
                  XboxGuide::Actions{
                      .game_display_name = descriptor_.display_name,
-                     .open_settings = [this](std::string section) { OpenSettings(std::move(section)); },
+                     .settings = SettingsContext{
+                         .settings_file = paths_.settings_file(),
+                         .game_data_root = game_data_root_,
+                         .user_data_root = paths_.user_data_root(),
+                         .dlc_folder = paths_.dlc_folder(),
+                         .portable = paths_.portable(),
+                         .apply_fullscreen = [this](bool fullscreen) {
+                           if (window()) window()->SetFullscreen(fullscreen);
+                         },
+                     },
                      .exit_game =
                          [this] {
                            if (auto* game_window = window()) {
@@ -173,33 +187,7 @@ void GameRecompApp::InstallContentPackages() {
 }
 
 void GameRecompApp::ToggleSystemMenu() {
-  if (settings_dialog_) {
-    settings_dialog_->RequestClose();
-  } else {
-    guide_.Toggle();
-  }
-}
-
-void GameRecompApp::OpenSettings(std::string section) {
-  if (settings_dialog_) {
-    return;
-  }
-  settings_dialog_ =
-      new SettingsDialog(imgui_drawer(), SettingsContext{
-                                             .settings_file = paths_.settings_file(),
-                                             .game_data_root = game_data_root_,
-                                             .user_data_root = paths_.user_data_root(),
-                                             .dlc_folder = paths_.dlc_folder(),
-                                             .portable = paths_.portable(),
-                                             .initial_section = std::move(section),
-                                             .apply_fullscreen =
-                                                 [this](bool fullscreen) {
-                                                   if (auto* game_window = window()) {
-                                                     game_window->SetFullscreen(fullscreen);
-                                                   }
-                                                 },
-                                             .on_closed = [this] { settings_dialog_ = nullptr; },
-                                         });
+  guide_.Toggle();
 }
 
 }  // namespace recomp

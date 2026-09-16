@@ -13,7 +13,7 @@ namespace recomp {
 
 namespace {
 
-constexpr std::array<UserSetting, 9> kUserSettings = {{
+constexpr std::array<UserSetting, 10> kUserSettings = {{
     {"fullscreen", false, false},
     {"resolution_scale", false, true},
     {"swap_post_effect", true, false},
@@ -23,6 +23,7 @@ constexpr std::array<UserSetting, 9> kUserSettings = {{
     {"input_backend", true, true},
     {"recomp_shared_controllers", false, true},
     {"guide_button", false, false},
+    {"recomp_guide_button_opens_guide", false, false},
 }};
 
 }
