@@ -93,6 +93,17 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void LoadAchievements();
   bool HasAchievements() const;
 
+  // Reads the controller and keyboard for one frame and acts on them.
+  void HandleGuideInput();
+  // Sounds for what a frame's input changed, comparing against where it was.
+  struct Snapshot {
+    Page page;
+    GuideTab tab;
+    int selection;
+  };
+  Snapshot TakeSnapshot() const;
+  void PlaySoundsFor(const Snapshot& before);
+
   // Moves the selection within a list and reports whether an entry was chosen.
   bool HandleInput(int& selection, int count, int page_rows);
   // A button held when the guide opened - a stuck stick on a phantom pad, or
@@ -145,6 +156,8 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   int total_gamerscore_ = 0;
 
   int frames_drawn_ = 0;
+  // Set when A changed or saved a setting, which moves nothing but still clicks.
+  bool setting_acted_ = false;
   // What the blade scene last drew, so it can animate from it.
   double opened_at_ = -1.0;
   int drawn_tab_ = -1;

@@ -36,6 +36,10 @@ class GuideResources {
   // nothing was supplied.
   rex::ui::ImmediateTexture* Get(const std::string& name);
 
+  // A file's bytes by the same name matching, for what is not a texture (the
+  // interface sounds). Null when there is no such file.
+  const std::vector<uint8_t>* Bytes(const std::string& name);
+
   bool loaded() const { return loaded_; }
   // Where the artwork came from, for the log and the settings screen.
   const std::string& source() const { return source_; }

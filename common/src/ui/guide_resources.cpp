@@ -199,6 +199,12 @@ void GuideResources::AddFile(const std::string& name, std::vector<uint8_t> bytes
   blobs_[LookupKey(name)] = std::move(bytes);
 }
 
+const std::vector<uint8_t>* GuideResources::Bytes(const std::string& name) {
+  LoadIfNeeded();
+  auto blob = blobs_.find(LookupKey(name));
+  return blob == blobs_.end() ? nullptr : &blob->second;
+}
+
 rex::ui::ImmediateTexture* GuideResources::Get(const std::string& name) {
   LoadIfNeeded();
   const std::string key = LookupKey(name);

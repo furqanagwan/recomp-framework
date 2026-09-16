@@ -14,6 +14,7 @@
 #include "recomp/input/controller_menu_watcher.h"
 #include "recomp/input/imgui_gamepad_bridge.h"
 #include "recomp/ui/guide_resources.h"
+#include "recomp/ui/guide_sounds.h"
 #include "recomp/ui/guide_fonts.h"
 #include "recomp/settings/user_settings_store.h"
 
@@ -168,6 +169,7 @@ GuideDialog::GuideDialog(rex::ui::ImGuiDrawer* drawer, GuideActions actions)
   }
   LoadAchievements();
   BuildEntries();
+  GuideSounds::Get().Play(GuideSounds::Cue::kOpen);
   for (const auto& setting : UserSettingsStore::Settings()) {
     if (setting.requires_restart) {
       settings_at_open_[std::string(setting.cvar)] = rex::cvar::GetFlagByName(setting.cvar);
@@ -178,6 +180,7 @@ GuideDialog::GuideDialog(rex::ui::ImGuiDrawer* drawer, GuideActions actions)
 GuideDialog::~GuideDialog() = default;
 
 void GuideDialog::OnClose() {
+  GuideSounds::Get().Play(GuideSounds::Cue::kClose);
   GuestInputGate::OnMenuHidden();
   if (actions_.on_closed) {
     actions_.on_closed();
@@ -621,6 +624,50 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
     return;
   }
 
+  const Snapshot before = TakeSnapshot();
+  HandleGuideInput();
+  PlaySoundsFor(before);
+}
+
+GuideDialog::Snapshot GuideDialog::TakeSnapshot() const {
+  int selection = selected_;
+  switch (page_) {
+    case Page::kSettings:
+      selection = setting_selected_;
+      break;
+    case Page::kAchievements:
+      selection = achievement_selected_;
+      break;
+    case Page::kExitConfirmation:
+      selection = exit_choice_;
+      break;
+    case Page::kRoot:
+      break;
+  }
+  return {page_, tab_, selection};
+}
+
+void GuideDialog::PlaySoundsFor(const Snapshot& before) {
+  if (close_requested_) {
+    return;  // OnClose plays the guide away.
+  }
+  const Snapshot after = TakeSnapshot();
+  auto& sounds = GuideSounds::Get();
+  if (after.tab != before.tab) {
+    sounds.Play(GuideSounds::Cue::kTabSwitch, static_cast<int>(before.tab));
+  } else if (after.page != before.page) {
+    // Into a page is a selection, out of one is back.
+    sounds.Play(after.page == Page::kRoot ? GuideSounds::Cue::kBack
+                                          : GuideSounds::Cue::kSelect);
+  } else if (setting_acted_) {
+    sounds.Play(GuideSounds::Cue::kSelect);
+  } else if (after.selection != before.selection) {
+    sounds.Play(GuideSounds::Cue::kFocus);
+  }
+  setting_acted_ = false;
+}
+
+void GuideDialog::HandleGuideInput() {
   if (page_ != Page::kExitConfirmation) {
     // Left and right move between tabs like the bumpers, from the keyboard,
     // the D-pad or the stick.

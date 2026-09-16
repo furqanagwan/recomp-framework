@@ -33,6 +33,7 @@ add_library(recomp_common STATIC
     src/ui/guide_blades.cpp
     src/ui/guide_settings.cpp
     src/ui/guide_resources.cpp
+    src/ui/guide_sounds.cpp
     src/ui/guide_theme.cpp
     src/ui/xbox_guide.cpp
 )

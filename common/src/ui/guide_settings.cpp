@@ -63,11 +63,13 @@ void GuideDialog::BuildSettings() {
 }
 
 void GuideDialog::SaveSettings() {
+  setting_acted_ = true;
   settings_status_ = UserSettingsStore(actions_.settings.settings_file).Save()
                          ? "Settings saved." : "Could not save settings.";
 }
 
 void GuideDialog::ChangeSetting(int direction) {
+  setting_acted_ = true;
   if (setting_rows_.empty()) return;
   const auto& row = setting_rows_[static_cast<size_t>(setting_selected_)];
   if (setting_selected_ == static_cast<int>(setting_rows_.size()) - 1) {
