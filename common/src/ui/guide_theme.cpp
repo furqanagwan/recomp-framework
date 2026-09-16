@@ -40,7 +40,7 @@ GuideTheme MetroTheme() {
   theme.text = IM_COL32(36, 40, 41, 255);
   theme.text_dim = IM_COL32(126, 126, 122, 255);
   theme.text_selected = IM_COL32(255, 255, 255, 255);
-  theme.selection = IM_COL32(16, 112, 0, 255);
+  theme.selection = IM_COL32(72, 168, 24, 255);
   theme.selection_bar = theme.selection;
   theme.separator = IM_COL32(214, 214, 210, 255);
   theme.button_b = IM_COL32(200, 46, 38, 255);

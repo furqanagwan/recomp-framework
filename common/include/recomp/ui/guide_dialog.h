@@ -100,6 +100,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   bool Pressed(std::initializer_list<ImGuiKey> keys, bool repeat);
   void ArmInput();
 
+  // The root screen as hud.xex's GuideMain scene lays it out: the current tab's
+  // list on the light centre blade, the other tabs as grey blades either side.
+  void DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io);
   // The title, gamer tile and clock, which sit on the game above the panel.
   void DrawChrome(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 panel_max);
   // The Games and Settings tabs down the sides, and the player's own between

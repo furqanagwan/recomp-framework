@@ -39,16 +39,30 @@ constexpr float kGamerTileSize = 56.0f;
 // Every key the guide reads, so one held at the moment it opens can be held
 // back until it is released.
 constexpr ImGuiKey kWatchedKeys[] = {
-    ImGuiKey_Enter,           ImGuiKey_Space,           ImGuiKey_Escape,
-    ImGuiKey_UpArrow,         ImGuiKey_DownArrow,       ImGuiKey_LeftArrow,
-    ImGuiKey_RightArrow,      ImGuiKey_PageUp,          ImGuiKey_PageDown,
-    ImGuiKey_GamepadFaceDown, ImGuiKey_GamepadFaceRight, ImGuiKey_GamepadFaceUp,
-    ImGuiKey_GamepadDpadUp,   ImGuiKey_GamepadDpadDown,
-    ImGuiKey_GamepadL1,       ImGuiKey_GamepadR1,
-    ImGuiKey_GamepadLStickUp, ImGuiKey_GamepadLStickDown,
-    ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadDpadRight,
-    ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight,
-    ImGuiKey_GamepadFaceLeft, ImGuiKey_S,
+    ImGuiKey_Enter,
+    ImGuiKey_Space,
+    ImGuiKey_Escape,
+    ImGuiKey_UpArrow,
+    ImGuiKey_DownArrow,
+    ImGuiKey_LeftArrow,
+    ImGuiKey_RightArrow,
+    ImGuiKey_PageUp,
+    ImGuiKey_PageDown,
+    ImGuiKey_GamepadFaceDown,
+    ImGuiKey_GamepadFaceRight,
+    ImGuiKey_GamepadFaceUp,
+    ImGuiKey_GamepadDpadUp,
+    ImGuiKey_GamepadDpadDown,
+    ImGuiKey_GamepadL1,
+    ImGuiKey_GamepadR1,
+    ImGuiKey_GamepadLStickUp,
+    ImGuiKey_GamepadLStickDown,
+    ImGuiKey_GamepadDpadLeft,
+    ImGuiKey_GamepadDpadRight,
+    ImGuiKey_GamepadLStickLeft,
+    ImGuiKey_GamepadLStickRight,
+    ImGuiKey_GamepadFaceLeft,
+    ImGuiKey_S,
 };
 
 void Text(ImDrawList* draw_list, ImVec2 position, ImU32 color, const std::string& text) {
@@ -72,8 +86,8 @@ void TextOverGame(ImDrawList* draw_list, ImVec2 position, ImU32 color, ImU32 sha
 void TextDown(ImDrawList* draw_list, ImVec2 center, ImU32 color, const std::string& text) {
   const ImVec2 size = ImGui::CalcTextSize(text.c_str());
   const int first = draw_list->VtxBuffer.Size;
-  draw_list->AddText(ImVec2(center.x - size.x * 0.5f, center.y - size.y * 0.5f),
-                     color, text.c_str());
+  draw_list->AddText(ImVec2(center.x - size.x * 0.5f, center.y - size.y * 0.5f), color,
+                     text.c_str());
   for (int i = first; i < draw_list->VtxBuffer.Size; ++i) {
     ImVec2& position = draw_list->VtxBuffer[i].pos;
     const float x = position.x - center.x;
@@ -135,7 +149,9 @@ std::string ClockText() {
   return buffer;
 }
 
-std::string GamerscoreText(int score) { return std::to_string(score) + " G"; }
+std::string GamerscoreText(int score) {
+  return std::to_string(score) + " G";
+}
 
 }  // namespace
 
@@ -147,7 +163,7 @@ GuideDialog::GuideDialog(rex::ui::ImGuiDrawer* drawer, GuideActions actions)
     resources_->LoadIfNeeded();
     if (actions_.runtime) {
       icons_ = std::make_unique<rex::ui::AchievementIconCache>(drawer->immediate_drawer(),
-                                                              actions_.runtime);
+                                                               actions_.runtime);
     }
   }
   LoadAchievements();
@@ -168,7 +184,9 @@ void GuideDialog::OnClose() {
   }
 }
 
-bool GuideDialog::HasAchievements() const { return !achievements_.empty(); }
+bool GuideDialog::HasAchievements() const {
+  return !achievements_.empty();
+}
 
 void GuideDialog::LoadAchievements() {
   if (achievements_loaded_ || !actions_.achievements) {
@@ -209,13 +227,12 @@ void GuideDialog::BuildEntries() {
     entries_.push_back(std::move(entry));
   } else if (tab_ == GuideTab::kSettings) {
     if (!actions_.settings.settings_file.empty()) {
-      for (const auto& section : {std::pair{"Scaling & Display", "video"},
-                                  std::pair{"Controls", "controls"},
-                                  std::pair{"Game Files", "game_files"}}) {
+      for (const auto& section :
+           {std::pair{"Scaling & Display", "video"}, std::pair{"Controls", "controls"},
+            std::pair{"Game Files", "game_files"}}) {
         const std::string target = section.second;
-        entries_.push_back({section.first, "", [this, target] {
-          ShowSettings(target);
-        }, false, Page::kSettings});
+        entries_.push_back(
+            {section.first, "", [this, target] { ShowSettings(target); }, false, Page::kSettings});
       }
     }
   } else {
@@ -226,7 +243,8 @@ void GuideDialog::BuildEntries() {
 
 void GuideDialog::SwitchTab(int direction) {
   const GuideTab next = AdjacentGuideTab(tab_, direction);
-  if (next == tab_) return;
+  if (next == tab_)
+    return;
   tab_ = next;
   page_ = Page::kRoot;
   selected_ = 0;
@@ -376,8 +394,7 @@ float GuideDialog::DrawTabs(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 pane
   const std::string labels[] = {"Games", REXCVAR_GET(recomp_gamertag), "Settings"};
   for (int i = 0; i < 3; ++i) {
     // Tabs up to the active one sit on the left; remaining tabs sit on the right.
-    const float x = i <= active ? panel_min.x + i * width
-                                : panel_max.x - (3 - i) * width;
+    const float x = i <= active ? panel_min.x + i * width : panel_max.x - (3 - i) * width;
     const ImVec2 low(x, panel_min.y);
     const ImVec2 high(x + width, panel_max.y);
     draw_list->AddRectFilled(low, high, i == active ? theme_.tab_active_fill : theme_.tab_fill);
@@ -385,9 +402,10 @@ float GuideDialog::DrawTabs(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 pane
     draw_list->AddLine(ImVec2(high.x - 1.0f, low.y), ImVec2(high.x - 1.0f, high.y),
                        theme_.separator);
     std::string label = Trim(labels[i], panel_max.y - panel_min.y - 28.0f);
-    TextDown(draw_list, ImVec2(x + width * 0.5f, panel_min.y + 14.0f +
-                              ImGui::CalcTextSize(label.c_str()).x * 0.5f),
-             i == active ? theme_.tab_active_text : theme_.tab_text, label);
+    TextDown(
+        draw_list,
+        ImVec2(x + width * 0.5f, panel_min.y + 14.0f + ImGui::CalcTextSize(label.c_str()).x * 0.5f),
+        i == active ? theme_.tab_active_text : theme_.tab_text, label);
   }
   return panel_min.x + (active + 1) * width;
 }
@@ -399,8 +417,8 @@ void GuideDialog::DrawEntries(ImDrawList* draw_list, ImVec2 top_left, float widt
     const ImVec2 row_max(top_left.x + width, row_min.y + theme_.entry_height);
     DrawRowBackground(draw_list, row_min, row_max, selected);
     if (i > 0 && !selected) {
-      draw_list->AddLine(ImVec2(row_min.x + 12.0f, row_min.y),
-                         ImVec2(row_max.x - 12.0f, row_min.y), theme_.separator);
+      draw_list->AddLine(ImVec2(row_min.x + 12.0f, row_min.y), ImVec2(row_max.x - 12.0f, row_min.y),
+                         theme_.separator);
     }
 
     const Entry& entry = entries_[i];
@@ -426,10 +444,9 @@ void GuideDialog::DrawAchievements(ImDrawList* draw_list, ImVec2 top_left, float
 
   const float bar_y = top_left.y + kSummaryHeight - 16.0f;
   const float bar_width = width - theme_.padding * 2.0f;
-  const float fraction =
-      achievements_.empty()
-          ? 0.0f
-          : static_cast<float>(unlocked_count_) / static_cast<float>(achievements_.size());
+  const float fraction = achievements_.empty() ? 0.0f
+                                               : static_cast<float>(unlocked_count_) /
+                                                     static_cast<float>(achievements_.size());
   const ImVec2 bar_min(top_left.x + theme_.padding, bar_y);
   draw_list->AddRectFilled(bar_min, ImVec2(bar_min.x + bar_width, bar_min.y + 6.0f),
                            theme_.separator, 3.0f);
@@ -463,8 +480,8 @@ void GuideDialog::DrawAchievements(ImDrawList* draw_list, ImVec2 top_left, float
     const ImVec2 icon_max(icon_min.x + kAchievementIconSize, icon_min.y + kAchievementIconSize);
     rex::ui::ImmediateTexture* icon = icons_ ? icons_->GetIcon(row.info) : nullptr;
     if (!icon) {
-      const bool secret = !row.unlocked && row.info.description.empty() &&
-                          row.info.unachieved_description.empty();
+      const bool secret =
+          !row.unlocked && row.info.description.empty() && row.info.unachieved_description.empty();
       icon = Artwork(secret ? "secretAchievement.png" : "unearnedAchievement.png");
     }
     if (icon) {
@@ -486,15 +503,15 @@ void GuideDialog::DrawAchievements(ImDrawList* draw_list, ImVec2 top_left, float
     const ImU32 title_color =
         selected ? theme_.text_selected : (row.unlocked ? theme_.text : theme_.text_dim);
     Text(draw_list, ImVec2(text_x, row_y + 16.0f), title_color, Trim(row.info.label, text_width));
-    const std::string& description =
-        row.unlocked || row.info.unachieved_description.empty() ? row.info.description
-                                                                : row.info.unachieved_description;
-    Text(draw_list, ImVec2(text_x, row_y + 40.0f), selected ? theme_.text_selected : theme_.text_dim,
-         Trim(description, text_width));
+    const std::string& description = row.unlocked || row.info.unachieved_description.empty()
+                                         ? row.info.description
+                                         : row.info.unachieved_description;
+    Text(draw_list, ImVec2(text_x, row_y + 40.0f),
+         selected ? theme_.text_selected : theme_.text_dim, Trim(description, text_width));
 
     const float right_x = row_max.x - 14.0f - right_width;
-    Text(draw_list, ImVec2(right_x, row_y + 16.0f),
-         selected ? theme_.text_selected : theme_.accent, score);
+    Text(draw_list, ImVec2(right_x, row_y + 16.0f), selected ? theme_.text_selected : theme_.accent,
+         score);
     if (!date.empty()) {
       Text(draw_list, ImVec2(right_x, row_y + 40.0f),
            selected ? theme_.text_selected : theme_.text_dim, date);
@@ -535,7 +552,8 @@ void GuideDialog::DrawHints(ImDrawList* draw_list, ImVec2 bottom_left, float wid
     hints.push_back({"Y", IM_COL32(222, 178, 20, 255), "Leave Game"});
   }
 
-  if (page_ == Page::kSettings) hints.push_back({"X", IM_COL32(45, 120, 205, 255), "Save"});
+  if (page_ == Page::kSettings)
+    hints.push_back({"X", IM_COL32(45, 120, 205, 255), "Save"});
 
   float total = 0.0f;
   for (const Hint& hint : hints) {
@@ -598,7 +616,8 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
                          (io.DisplaySize.y - body_height) * 0.5f);
   const ImVec2 panel_max(panel_min.x + panel_width, panel_min.y + body_height);
 
-  if (GuideFont()) ImGui::PushFont(GuideFont());
+  if (GuideFont())
+    ImGui::PushFont(GuideFont());
   ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
   ImGui::SetNextWindowSize(io.DisplaySize);
   ImGui::Begin("##recomp_guide", nullptr,
@@ -610,35 +629,40 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   // The game keeps rendering behind the guide, dimmed as on a console.
   draw_list->AddRectFilled(ImVec2(0.0f, 0.0f), io.DisplaySize, theme_.dim);
 
-  DrawChrome(draw_list, panel_min, panel_max);
-
-  if (theme_.panel_top == theme_.panel_bottom) {
-    draw_list->AddRectFilled(panel_min, panel_max, theme_.panel_top, theme_.rounding);
+  if (page_ == Page::kRoot || page_ == Page::kExitConfirmation) {
+    DrawBladeScene(draw_list, io);
   } else {
-    draw_list->AddRectFilledMultiColor(panel_min, panel_max, theme_.panel_top, theme_.panel_top,
-                                       theme_.panel_bottom, theme_.panel_bottom);
-  }
+    DrawChrome(draw_list, panel_min, panel_max);
 
-  const float list_x = DrawTabs(draw_list, panel_min, panel_max);
-  const float list_width = panel_width - 3.0f * theme_.tab_width;
-  const ImVec2 list_min(list_x, panel_min.y);
-  switch (page_) {
-    case Page::kRoot:
-      DrawEntries(draw_list, list_min, list_width);
-      break;
-    case Page::kSettings:
-      DrawSettings(draw_list, list_min, list_width);
-      break;
-    case Page::kAchievements:
-      DrawAchievements(draw_list, list_min, list_width, visible_rows);
-      break;
-    case Page::kExitConfirmation:
-      DrawExitConfirmation(draw_list, list_min, list_width);
-      break;
+    if (theme_.panel_top == theme_.panel_bottom) {
+      draw_list->AddRectFilled(panel_min, panel_max, theme_.panel_top, theme_.rounding);
+    } else {
+      draw_list->AddRectFilledMultiColor(panel_min, panel_max, theme_.panel_top, theme_.panel_top,
+                                         theme_.panel_bottom, theme_.panel_bottom);
+    }
+
+    const float list_x = DrawTabs(draw_list, panel_min, panel_max);
+    const float list_width = panel_width - 3.0f * theme_.tab_width;
+    const ImVec2 list_min(list_x, panel_min.y);
+    switch (page_) {
+      case Page::kRoot:
+        DrawEntries(draw_list, list_min, list_width);
+        break;
+      case Page::kSettings:
+        DrawSettings(draw_list, list_min, list_width);
+        break;
+      case Page::kAchievements:
+        DrawAchievements(draw_list, list_min, list_width, visible_rows);
+        break;
+      case Page::kExitConfirmation:
+        DrawExitConfirmation(draw_list, list_min, list_width);
+        break;
+    }
+    DrawHints(draw_list, ImVec2(panel_min.x, panel_max.y), panel_width);
   }
-  DrawHints(draw_list, ImVec2(panel_min.x, panel_max.y), panel_width);
   ImGui::End();
-  if (GuideFont()) ImGui::PopFont();
+  if (GuideFont())
+    ImGui::PopFont();
 
   // The controller state the guide sees on its first frames is whatever was
   // held when it opened - the chord that opened it, or a pad resting off
@@ -651,10 +675,12 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   }
 
   if (page_ != Page::kExitConfirmation) {
-    const bool left = page_ == Page::kSettings ? Pressed({ImGuiKey_GamepadL1}, false)
-        : Pressed({ImGuiKey_GamepadL1, ImGuiKey_LeftArrow}, false);
-    const bool right = page_ == Page::kSettings ? Pressed({ImGuiKey_GamepadR1}, false)
-        : Pressed({ImGuiKey_GamepadR1, ImGuiKey_RightArrow}, false);
+    const bool left = page_ == Page::kSettings
+                          ? Pressed({ImGuiKey_GamepadL1}, false)
+                          : Pressed({ImGuiKey_GamepadL1, ImGuiKey_LeftArrow}, false);
+    const bool right = page_ == Page::kSettings
+                           ? Pressed({ImGuiKey_GamepadR1}, false)
+                           : Pressed({ImGuiKey_GamepadR1, ImGuiKey_RightArrow}, false);
     if (left != right) {
       SwitchTab(right ? 1 : -1);
       return;
@@ -664,15 +690,21 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   const bool back = Pressed({ImGuiKey_Escape, ImGuiKey_GamepadFaceRight}, false);
 
   if (page_ == Page::kSettings) {
-    if (back) { page_ = Page::kRoot; return; }
+    if (back) {
+      page_ = Page::kRoot;
+      return;
+    }
     const bool chosen = HandleInput(setting_selected_, static_cast<int>(setting_rows_.size()), 0);
-    const bool left = Pressed({ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft,
-                                ImGuiKey_GamepadLStickLeft}, true);
-    const bool right = Pressed({ImGuiKey_RightArrow, ImGuiKey_GamepadDpadRight,
-                                 ImGuiKey_GamepadLStickRight}, true);
-    if (chosen) ChangeSetting(1);
-    else if (left != right) ChangeSetting(right ? 1 : -1);
-    if (Pressed({ImGuiKey_GamepadFaceLeft, ImGuiKey_S}, false)) SaveSettings();
+    const bool left =
+        Pressed({ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadLStickLeft}, true);
+    const bool right = Pressed(
+        {ImGuiKey_RightArrow, ImGuiKey_GamepadDpadRight, ImGuiKey_GamepadLStickRight}, true);
+    if (chosen)
+      ChangeSetting(1);
+    else if (left != right)
+      ChangeSetting(right ? 1 : -1);
+    if (Pressed({ImGuiKey_GamepadFaceLeft, ImGuiKey_S}, false))
+      SaveSettings();
     return;
   }
 
@@ -716,7 +748,8 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   if (!chosen) {
     return;
   }
-  if (entries_.empty()) return;
+  if (entries_.empty())
+    return;
   const Entry& entry = entries_[static_cast<size_t>(selected_)];
   if (!entry.closes_guide) {
     page_ = entry.opens;
