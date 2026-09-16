@@ -65,13 +65,13 @@ void TextOverGame(ImDrawList* draw_list, ImVec2 position, ImU32 color, ImU32 sha
 
 // A tab's name runs down its edge on the console. One character to a line is
 // close enough at this size and needs no rotated glyphs.
-void TextDown(ImDrawList* draw_list, ImVec2 center_top, ImU32 color, const std::string& text) {
+void TextDown(ImDrawList* draw_list, ImVec2 center, ImU32 color, const std::string& text) {
   const float line = ImGui::GetFontSize() + 1.0f;
-  float y = center_top.y;
+  float y = center.y - line * static_cast<float>(text.size()) * 0.5f;
   for (char character : text) {
     const char letter[2] = {character, '\0'};
     const ImVec2 size = ImGui::CalcTextSize(letter);
-    draw_list->AddText(ImVec2(center_top.x - size.x * 0.5f, y), color, letter);
+    draw_list->AddText(ImVec2(center.x - size.x * 0.5f, y), color, letter);
     y += line;
   }
 }
@@ -309,15 +309,21 @@ void GuideDialog::DrawChrome(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 pan
   const float tile_x = (panel_min.x + panel_max.x) * 0.5f - kGamerTileSize * 0.5f;
   const ImVec2 tile_min(tile_x, panel_min.y - kGamerTileSize - 8.0f);
   const ImVec2 tile_max(tile_min.x + kGamerTileSize, tile_min.y + kGamerTileSize);
-  rex::ui::ImmediateTexture* tile = FirstArtwork(
-      {"gamerpic.png", "ico_64x_DefaultPicture.png", "ico_64x_Gamertiles.png", "GScore_white.png"});
+  // Only a picture the player put there by name: the packages hold sheets and
+  // placeholders that read as nothing at this size.
+  rex::ui::ImmediateTexture* tile = FirstArtwork({"gamerpic.png", "gamertile.png"});
   if (tile) {
     draw_list->AddImage(reinterpret_cast<ImTextureID>(tile), tile_min, tile_max);
   } else {
-    draw_list->AddRectFilled(tile_min, tile_max, theme_.tab_fill);
-    draw_list->AddCircleFilled(ImVec2((tile_min.x + tile_max.x) * 0.5f,
-                                      (tile_min.y + tile_max.y) * 0.5f),
-                               kGamerTileSize * 0.3f, theme_.accent, 24);
+    const std::string gamertag = REXCVAR_GET(recomp_gamertag);
+    draw_list->AddRectFilled(tile_min, tile_max, theme_.accent);
+    const std::string initial(1, gamertag.empty() ? 'P' : gamertag.front());
+    const float scale = 2.0f;
+    const ImVec2 size = ImGui::CalcTextSize(initial.c_str());
+    TextScaled(draw_list,
+               ImVec2((tile_min.x + tile_max.x) * 0.5f - size.x * scale * 0.5f,
+                      (tile_min.y + tile_max.y) * 0.5f - size.y * scale * 0.5f),
+               IM_COL32(255, 255, 255, 255), initial, scale);
   }
   draw_list->AddRect(tile_min, tile_max, theme_.chrome_text, 0.0f, 0, 2.0f);
 
@@ -337,20 +343,23 @@ float GuideDialog::DrawTabs(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 pane
   const ImVec2 games_min(panel_min.x, panel_min.y + inset);
   const ImVec2 games_max(games_min.x + tab, panel_max.y - inset);
   draw_list->AddRectFilled(games_min, games_max, theme_.tab_fill);
-  TextDown(draw_list, ImVec2((games_min.x + games_max.x) * 0.5f, games_min.y + 16.0f),
+  TextDown(draw_list, ImVec2((games_min.x + games_max.x) * 0.5f, (games_min.y + games_max.y) * 0.5f),
            theme_.tab_text, "Games");
 
   const ImVec2 player_min(games_max.x, panel_min.y + 2.0f);
   const ImVec2 player_max(player_min.x + tab, panel_max.y - 2.0f);
   draw_list->AddRectFilled(player_min, player_max, theme_.tab_active_fill);
-  TextDown(draw_list, ImVec2((player_min.x + player_max.x) * 0.5f, player_min.y + 14.0f),
+  TextDown(draw_list,
+           ImVec2((player_min.x + player_max.x) * 0.5f, (player_min.y + player_max.y) * 0.5f),
            theme_.tab_active_text, REXCVAR_GET(recomp_gamertag));
 
   // Right: Settings.
   const ImVec2 settings_max(panel_max.x, panel_max.y - inset);
   const ImVec2 settings_min(settings_max.x - tab, panel_min.y + inset);
   draw_list->AddRectFilled(settings_min, settings_max, theme_.tab_fill);
-  TextDown(draw_list, ImVec2((settings_min.x + settings_max.x) * 0.5f, settings_min.y + 16.0f),
+  TextDown(draw_list,
+           ImVec2((settings_min.x + settings_max.x) * 0.5f,
+                  (settings_min.y + settings_max.y) * 0.5f),
            theme_.tab_text, "Settings");
 
   return player_max.x;  // where the list starts
