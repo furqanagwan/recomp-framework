@@ -93,18 +93,26 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
   DialogLayout::BeginCenteredPanel("Settings", io, kPanelWidth, &open);
 
   if (ImGui::BeginTabBar("##recomp_settings_tabs")) {
-    if (ImGui::BeginTabItem("Video")) {
+    // The guide can ask for a section; only the first frame selects it, so the
+    // player can move away from it afterwards.
+    auto section_flags = [this](const char* section) {
+      return context_.initial_section == section && select_initial_section_
+                 ? ImGuiTabItemFlags_SetSelected
+                 : ImGuiTabItemFlags_None;
+    };
+    if (ImGui::BeginTabItem("Video", nullptr, section_flags("video"))) {
       DrawVideoTab();
       ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem("Controls")) {
+    if (ImGui::BeginTabItem("Controls", nullptr, section_flags("controls"))) {
       DrawControlsTab();
       ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem("Game Files")) {
+    if (ImGui::BeginTabItem("Game Files", nullptr, section_flags("game_files"))) {
       DrawGameFilesTab();
       ImGui::EndTabItem();
     }
+    select_initial_section_ = false;
     ImGui::EndTabBar();
   }
   const bool close = DrawFooter();

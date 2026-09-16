@@ -19,7 +19,7 @@
 #include "recomp/ui/disc_install_dialog.h"
 #include "recomp/ui/monochrome_theme.h"
 #include "recomp/ui/settings_dialog.h"
-#include "recomp/ui/system_menu_dialog.h"
+#include "recomp/ui/xbox_guide.h"
 
 REXCVAR_DECLARE(bool, recomp_shared_controllers);
 
@@ -115,11 +115,29 @@ void GameRecompApp::OnPostLoadXexImage() {
 
 void GameRecompApp::OnPostSetup() {
   NativeRenderProbe::InstallIfRequested();
+  guide_.Install(imgui_drawer(),
+                 XboxGuide::Actions{
+                     .game_display_name = descriptor_.display_name,
+                     .has_achievements = !achievements().ListAchievements().empty(),
+                     .open_settings = [this](std::string section) { OpenSettings(std::move(section)); },
+                     .open_achievements = [] { rex::ui::InvokeBind("bind_achievements"); },
+                     .exit_game =
+                         [this] {
+                           if (auto* game_window = window()) {
+                             game_window->RequestClose();
+                           }
+                         },
+                     .on_ui_thread =
+                         [this](std::function<void()> work) {
+                           app_context().CallInUIThreadDeferred(std::move(work));
+                         },
+                 });
   menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
-                      &app_context(), [this] { OpenSystemMenu(); });
+                      &app_context(), [this] { guide_.Open(); });
 }
 
 void GameRecompApp::OnShutdown() {
+  guide_.Uninstall();
   menu_watcher_.Stop();
   gaming_runtime_.End();
   rex::ui::UnregisterBind(kSystemMenuBind);
@@ -157,32 +175,12 @@ void GameRecompApp::InstallContentPackages() {
 void GameRecompApp::ToggleSystemMenu() {
   if (settings_dialog_) {
     settings_dialog_->RequestClose();
-  } else if (system_menu_) {
-    system_menu_->RequestClose();
   } else {
-    OpenSystemMenu();
+    guide_.Toggle();
   }
 }
 
-void GameRecompApp::OpenSystemMenu() {
-  if (system_menu_ || settings_dialog_) {
-    return;
-  }
-  system_menu_ =
-      new SystemMenuDialog(imgui_drawer(), SystemMenuActions{
-                                               .game_display_name = descriptor_.display_name,
-                                               .open_settings = [this] { OpenSettings(); },
-                                               .exit_game =
-                                                   [this] {
-                                                     if (auto* game_window = window()) {
-                                                       game_window->RequestClose();
-                                                     }
-                                                   },
-                                               .on_closed = [this] { system_menu_ = nullptr; },
-                                           });
-}
-
-void GameRecompApp::OpenSettings() {
+void GameRecompApp::OpenSettings(std::string section) {
   if (settings_dialog_) {
     return;
   }
@@ -193,6 +191,7 @@ void GameRecompApp::OpenSettings() {
                                              .user_data_root = paths_.user_data_root(),
                                              .dlc_folder = paths_.dlc_folder(),
                                              .portable = paths_.portable(),
+                                             .initial_section = std::move(section),
                                              .apply_fullscreen =
                                                  [this](bool fullscreen) {
                                                    if (auto* game_window = window()) {

@@ -40,6 +40,12 @@ class ControllerMenuWatcher {
 class GuestInputGate {
  public:
   static void Install(rex::input::InputSystem* input);
+  // Holds View and Menu back from the game while they might still be the
+  // guide's chord, so the game does not react to Menu before the guide opens.
+  static void HoldChordButtons(bool hold);
+  // Hands the game a press of these buttons it never saw, for the moment a
+  // held-back button turns out not to have been part of the chord.
+  static void ReplayButtons(uint16_t buttons);
   static void Uninstall();
   static void OnMenuShown();
   static void OnMenuHidden();

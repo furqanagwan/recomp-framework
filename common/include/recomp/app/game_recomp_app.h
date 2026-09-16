@@ -10,11 +10,11 @@
 #include "recomp/app/game_paths.h"
 #include "recomp/input/controller_menu_watcher.h"
 #include "recomp/platform/gaming_runtime_session.h"
+#include "recomp/ui/xbox_guide.h"
 
 namespace recomp {
 
 class SettingsDialog;
-class SystemMenuDialog;
 
 class GameRecompApp : public rex::ReXApp {
  protected:
@@ -38,8 +38,7 @@ class GameRecompApp : public rex::ReXApp {
   bool InstallFromEnvironment(const std::filesystem::path& game_root);
   void InstallContentPackages();
   void ToggleSystemMenu();
-  void OpenSystemMenu();
-  void OpenSettings();
+  void OpenSettings(std::string section);
 
   GameDescriptor descriptor_;
   rex::PPCImageInfo image_info_;
@@ -47,7 +46,7 @@ class GameRecompApp : public rex::ReXApp {
   std::filesystem::path game_data_root_;
   GamingRuntimeSession gaming_runtime_;
   ControllerMenuWatcher menu_watcher_;
-  SystemMenuDialog* system_menu_ = nullptr;
+  XboxGuide guide_;
   SettingsDialog* settings_dialog_ = nullptr;
 };
 

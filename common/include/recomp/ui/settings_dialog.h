@@ -15,6 +15,8 @@ struct SettingsContext {
   std::filesystem::path user_data_root;
   std::filesystem::path dlc_folder;
   bool portable = false;
+  // Section to open at: "video", "controls", "game_files", or empty.
+  std::string initial_section;
   std::function<void(bool)> apply_fullscreen;
   std::function<void()> on_closed;
 };
@@ -37,6 +39,7 @@ class SettingsDialog final : public rex::ui::ImGuiDialog {
   bool HasPendingRestartChanges() const;
 
   SettingsContext context_;
+  bool select_initial_section_ = true;
   std::map<std::string, std::string> values_at_open_;
   std::string status_;
   bool close_requested_ = false;

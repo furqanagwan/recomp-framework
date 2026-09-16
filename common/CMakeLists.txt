@@ -29,7 +29,8 @@ add_library(recomp_common STATIC
     src/ui/disc_install_dialog.cpp
     src/ui/monochrome_theme.cpp
     src/ui/settings_dialog.cpp
-    src/ui/system_menu_dialog.cpp
+    src/ui/guide_dialog.cpp
+    src/ui/xbox_guide.cpp
 )
 
 if(REXGLUE_PLATFORM_UWP)
