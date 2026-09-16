@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include <rex/system/achievement_store.h>
 #include <imgui.h>
+#include <rex/system/achievement_store.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex {
@@ -39,11 +39,12 @@ struct GuideActions {
 };
 
 // The compatibility guide's screen, in the shape of the Xbox 360 guide a Series
-// X shows over a backward-compatible title: a panel with the green header, one
-// column of entries, and the button glyphs along the bottom.
+// X shows over a backward-compatible title: the list between its tabs, with the
+// title, the gamer tile and the clock on the game above it.
 //
-// It wears whichever era recomp_guide_theme names, and draws with the console's
-// own artwork when the player has supplied a copy (see GuideResources).
+// It wears whichever era recomp_guide_theme names - metro, as a Series X does,
+// or blades - and draws with the console's own artwork when the player has
+// supplied a copy (see GuideResources).
 class GuideDialog final : public rex::ui::ImGuiDialog {
  public:
   GuideDialog(rex::ui::ImGuiDrawer* drawer, GuideActions actions);
@@ -66,7 +67,8 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
 
   struct Entry {
     std::string label;
-    std::string hint;
+    // The count the console shows at the right of a row.
+    std::string value;
     std::function<void()> activate;
     bool closes_guide = true;
     Page opens = Page::kRoot;
@@ -89,18 +91,23 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   bool Pressed(std::initializer_list<ImGuiKey> keys, bool repeat);
   void ArmInput();
 
-  void DrawHeader(ImDrawList* draw_list, ImVec2 top_left, float width, const char* title,
-                  const std::string& subtitle);
+  // The title, gamer tile and clock, which sit on the game above the panel.
+  void DrawChrome(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 panel_max);
+  // The Games and Settings tabs down the sides, and the player's own between
+  // them, as the console stacks them.
+  float DrawTabs(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 panel_max);
   void DrawEntries(ImDrawList* draw_list, ImVec2 top_left, float width);
   void DrawAchievements(ImDrawList* draw_list, ImVec2 top_left, float width, int visible_rows);
-  void DrawFooter(ImDrawList* draw_list, ImVec2 bottom_left, float width);
+  void DrawHints(ImDrawList* draw_list, ImVec2 bottom_left, float width);
   void DrawExitConfirmation(ImDrawList* draw_list, ImVec2 top_left, float width);
   void DrawRowBackground(ImDrawList* draw_list, ImVec2 row_min, ImVec2 row_max, bool selected);
   // A glyph from the supplied artwork, or a drawn circle when there is none.
   void DrawButtonGlyph(ImDrawList* draw_list, ImVec2 center, const char* letter, ImU32 fallback);
-  float DrawFooterHint(ImDrawList* draw_list, float x, float y, const char* letter, ImU32 fallback,
-                       const char* label);
+  float DrawHint(ImDrawList* draw_list, float x, float y, const char* letter, ImU32 fallback,
+                 const char* label);
   rex::ui::ImmediateTexture* Artwork(const std::string& name);
+  // The first of these the supplied artwork has, if any.
+  rex::ui::ImmediateTexture* FirstArtwork(std::initializer_list<const char*> names);
 
   GuideActions actions_;
   const GuideTheme& theme_;

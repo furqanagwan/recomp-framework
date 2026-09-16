@@ -19,13 +19,15 @@ struct ButtonMapping {
   uint16_t button;
 };
 
-constexpr std::array<ButtonMapping, 8> kButtonMappings = {{
+constexpr std::array<ButtonMapping, 10> kButtonMappings = {{
     {ImGuiKey_GamepadDpadUp, rex::input::X_INPUT_GAMEPAD_DPAD_UP},
     {ImGuiKey_GamepadDpadDown, rex::input::X_INPUT_GAMEPAD_DPAD_DOWN},
     {ImGuiKey_GamepadDpadLeft, rex::input::X_INPUT_GAMEPAD_DPAD_LEFT},
     {ImGuiKey_GamepadDpadRight, rex::input::X_INPUT_GAMEPAD_DPAD_RIGHT},
     {ImGuiKey_GamepadFaceDown, rex::input::X_INPUT_GAMEPAD_A},
     {ImGuiKey_GamepadFaceRight, rex::input::X_INPUT_GAMEPAD_B},
+    {ImGuiKey_GamepadFaceLeft, rex::input::X_INPUT_GAMEPAD_X},
+    {ImGuiKey_GamepadFaceUp, rex::input::X_INPUT_GAMEPAD_Y},
     {ImGuiKey_GamepadL1, rex::input::X_INPUT_GAMEPAD_LEFT_SHOULDER},
     {ImGuiKey_GamepadR1, rex::input::X_INPUT_GAMEPAD_RIGHT_SHOULDER},
 }};

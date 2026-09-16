@@ -32,12 +32,22 @@ struct GuideTheme {
   ImU32 separator = 0;
   ImU32 button_b = 0;        // the B glyph, when it has to be drawn
 
+  // The console's guide sits on the screen rather than in a window: the tabs
+  // down each side, and the title, gamer tile and clock above it.
+  ImU32 tab_fill = 0;        // the Games and Settings tabs
+  ImU32 tab_text = 0;
+  ImU32 tab_active_fill = 0; // the tab the list belongs to
+  ImU32 tab_active_text = 0;
+  ImU32 chrome_text = 0;     // over the game, outside the panel
+  ImU32 chrome_shadow = 0;
+
   float rounding = 0.0f;
   float entry_height = 54.0f;
   float header_height = 96.0f;
   float footer_height = 56.0f;
   float panel_width = 560.0f;
   float padding = 22.0f;
+  float tab_width = 34.0f;
 };
 
 // The theme named by recomp_guide_theme, falling back to metro.
