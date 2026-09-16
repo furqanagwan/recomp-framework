@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <rex/system/achievement_store.h>
+#include <imgui.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex {
@@ -83,6 +84,10 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
 
   // Moves the selection within a list and reports whether an entry was chosen.
   bool HandleInput(int& selection, int count, int page_rows);
+  // A button held when the guide opened - a stuck stick on a phantom pad, or
+  // the press that opened it - has to be let go before it counts.
+  bool Pressed(std::initializer_list<ImGuiKey> keys, bool repeat);
+  void ArmInput();
 
   void DrawHeader(ImDrawList* draw_list, ImVec2 top_left, float width, const char* title,
                   const std::string& subtitle);
@@ -108,6 +113,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   int unlocked_count_ = 0;
   int earned_gamerscore_ = 0;
   int total_gamerscore_ = 0;
+
+  int frames_drawn_ = 0;
+  std::vector<ImGuiKey> masked_keys_;
 
   Page page_ = Page::kRoot;
   int selected_ = 0;

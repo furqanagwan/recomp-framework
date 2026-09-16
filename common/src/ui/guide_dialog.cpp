@@ -34,14 +34,17 @@ constexpr float kAchievementsWidth = 860.0f;
 constexpr int kAchievementsVisibleRows = 6;
 constexpr float kSummaryHeight = 54.0f;
 
-bool PressedAny(std::initializer_list<ImGuiKey> keys, bool repeat) {
-  for (ImGuiKey key : keys) {
-    if (ImGui::IsKeyPressed(key, repeat)) {
-      return true;
-    }
-  }
-  return false;
-}
+// Every key the guide reads, so one held at the moment it opens can be held
+// back until it is released.
+constexpr ImGuiKey kWatchedKeys[] = {
+    ImGuiKey_Enter,         ImGuiKey_Space,          ImGuiKey_Escape,
+    ImGuiKey_UpArrow,       ImGuiKey_DownArrow,      ImGuiKey_LeftArrow,
+    ImGuiKey_RightArrow,    ImGuiKey_PageUp,         ImGuiKey_PageDown,
+    ImGuiKey_GamepadFaceDown, ImGuiKey_GamepadFaceRight,
+    ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadDpadDown,
+    ImGuiKey_GamepadL1,     ImGuiKey_GamepadR1,
+    ImGuiKey_GamepadLStickUp, ImGuiKey_GamepadLStickDown,
+};
 
 void Text(ImDrawList* draw_list, ImVec2 position, ImU32 color, const std::string& text) {
   draw_list->AddText(position, color, text.c_str());
@@ -183,27 +186,51 @@ rex::ui::ImmediateTexture* GuideDialog::Artwork(const std::string& name) {
   return resources_ ? resources_->Get(name) : nullptr;
 }
 
+void GuideDialog::ArmInput() {
+  masked_keys_.clear();
+  for (ImGuiKey key : kWatchedKeys) {
+    if (ImGui::IsKeyDown(key)) {
+      masked_keys_.push_back(key);
+    }
+  }
+}
+
+bool GuideDialog::Pressed(std::initializer_list<ImGuiKey> keys, bool repeat) {
+  bool pressed = false;
+  for (ImGuiKey key : keys) {
+    auto masked = std::find(masked_keys_.begin(), masked_keys_.end(), key);
+    if (masked != masked_keys_.end()) {
+      if (ImGui::IsKeyDown(key)) {
+        continue;
+      }
+      masked_keys_.erase(masked);
+    }
+    pressed = ImGui::IsKeyPressed(key, repeat) || pressed;
+  }
+  return pressed;
+}
+
 bool GuideDialog::HandleInput(int& selection, int count, int page_rows) {
   if (count <= 0) {
-    return PressedAny({ImGuiKey_Enter, ImGuiKey_Space, ImGuiKey_GamepadFaceDown}, false);
+    return Pressed({ImGuiKey_Enter, ImGuiKey_Space, ImGuiKey_GamepadFaceDown}, false);
   }
-  if (PressedAny({ImGuiKey_DownArrow, ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadLStickDown},
+  if (Pressed({ImGuiKey_DownArrow, ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadLStickDown},
                  true)) {
     selection = (selection + 1) % count;
   }
-  if (PressedAny({ImGuiKey_UpArrow, ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp}, true)) {
+  if (Pressed({ImGuiKey_UpArrow, ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp}, true)) {
     selection = (selection + count - 1) % count;
   }
   if (page_rows > 0 &&
-      PressedAny({ImGuiKey_PageDown, ImGuiKey_GamepadR1, ImGuiKey_RightArrow}, true)) {
+      Pressed({ImGuiKey_PageDown, ImGuiKey_GamepadR1, ImGuiKey_RightArrow}, true)) {
     selection = std::min(selection + page_rows, count - 1);
   }
   if (page_rows > 0 &&
-      PressedAny({ImGuiKey_PageUp, ImGuiKey_GamepadL1, ImGuiKey_LeftArrow}, true)) {
+      Pressed({ImGuiKey_PageUp, ImGuiKey_GamepadL1, ImGuiKey_LeftArrow}, true)) {
     selection = std::max(selection - page_rows, 0);
   }
   selection = std::clamp(selection, 0, count - 1);
-  return PressedAny({ImGuiKey_Enter, ImGuiKey_Space, ImGuiKey_GamepadFaceDown}, false);
+  return Pressed({ImGuiKey_Enter, ImGuiKey_Space, ImGuiKey_GamepadFaceDown}, false);
 }
 
 void GuideDialog::DrawRowBackground(ImDrawList* draw_list, ImVec2 row_min, ImVec2 row_max,
@@ -526,7 +553,17 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
              panel_width);
   ImGui::End();
 
-  const bool back = PressedAny({ImGuiKey_Escape, ImGuiKey_GamepadFaceRight}, false);
+  // The controller state the guide sees on its first frames is whatever was
+  // held when it opened - the chord that opened it, or a pad resting off
+  // centre. Take a reading, then start listening.
+  if (frames_drawn_ < 2) {
+    if (++frames_drawn_ == 2) {
+      ArmInput();
+    }
+    return;
+  }
+
+  const bool back = Pressed({ImGuiKey_Escape, ImGuiKey_GamepadFaceRight}, false);
 
   if (page_ == Page::kAchievements) {
     HandleInput(achievement_selected_, static_cast<int>(achievements_.size()), visible_rows);
