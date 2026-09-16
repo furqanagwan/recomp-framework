@@ -72,6 +72,7 @@ constexpr float kLegendItemGap = 30.0f;
 
 // How long the console takes: the guide opening, tabs sliding, a row's
 // highlight arriving (XuiButtonGuide's Focus runs 12 frames).
+constexpr float kPi = 3.14159265f;
 constexpr double kOpenSeconds = 0.22;
 constexpr double kTabSeconds = 0.20;
 constexpr double kFocusSeconds = 0.20;
@@ -305,9 +306,9 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
   const ImVec2 ring = screen.At(kRingX, kRingY);
   const float ring_radius = screen.Size(kRingRadius);
   const float ring_width = std::max(1.5f, screen.Size(4.0f));
-  draw_list->PathArcTo(ring, ring_radius, 0.0f, IM_PI * 2.0f, 40);
+  draw_list->PathArcTo(ring, ring_radius, 0.0f, kPi * 2.0f, 40);
   draw_list->PathStroke(Fade(IM_COL32(0x9A, 0xA0, 0xA4, 255), open), 0, ring_width);
-  draw_list->PathArcTo(ring, ring_radius, IM_PI * 1.05f, IM_PI * 1.45f, 12);
+  draw_list->PathArcTo(ring, ring_radius, kPi * 1.05f, kPi * 1.45f, 12);
   draw_list->PathStroke(Fade(IM_COL32(0x9C, 0xE0, 0x2C, 255), open), 0, ring_width);
 
   const std::string clock = Clock();
