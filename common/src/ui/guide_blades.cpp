@@ -517,7 +517,10 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
         if (!texture) {
           texture = Artwork("unearnedAchievement.png");
         }
-        const float icon_alpha = (row.unlocked ? 1.0f : 0.45f) * list_alpha;
+        // Earned: the picture in full and the row in the list's own colours.
+        // Not yet earned: the picture faded and the words greyed, so what is
+        // left to get reads apart from what is done.
+        const float icon_alpha = (row.unlocked ? 1.0f : 0.4f) * list_alpha;
         if (texture) {
           draw_list->AddImage(reinterpret_cast<ImTextureID>(texture), icon_min, icon_max,
                               ImVec2(0, 0), ImVec2(1, 1),
@@ -525,6 +528,13 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
         } else {
           draw_list->AddRectFilled(icon_min, icon_max, Fade(palette.slate, icon_alpha));
         }
+        const ImU32 locked = Fade(palette.value, list_alpha * 0.8f);
+        const ImU32 title_color =
+            band.focused || row.unlocked ? text_color(band.focused) : locked;
+        const ImU32 detail = band.focused || row.unlocked ? detail_color(band.focused) : locked;
+        const ImU32 score_color = band.focused    ? detail_color(true)
+                                  : row.unlocked ? Fade(palette.focus_bottom, list_alpha)
+                                                 : locked;
 
         const float title_size = screen.Size(kAchievementTitleSize);
         const float detail_size = screen.Size(kAchievementDetailSize);
@@ -533,17 +543,16 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
         const float width = text_right - left - TextWidth(title_size, gamerscore) -
                             screen.Size(20.0f);
         const float title_y = band.min.y + screen.Size(8.0f);
-        DrawText(draw_list, ImVec2(left, title_y), title_size, text_color(band.focused),
+        DrawText(draw_list, ImVec2(left, title_y), title_size, title_color,
                  trim(row.info.label, title_size, width));
         DrawText(draw_list, ImVec2(text_right - TextWidth(title_size, gamerscore), title_y),
-                 title_size, detail_color(band.focused), gamerscore);
+                 title_size, score_color, gamerscore);
         const std::string& description =
             row.unlocked || row.info.unachieved_description.empty()
                 ? row.info.description
                 : row.info.unachieved_description;
         DrawText(draw_list, ImVec2(left, title_y + title_size + screen.Size(2.0f)), detail_size,
-                 detail_color(band.focused),
-                 trim(description, detail_size, text_right - left));
+                 detail, trim(description, detail_size, text_right - left));
       }
 
       // Where in the list this is.
