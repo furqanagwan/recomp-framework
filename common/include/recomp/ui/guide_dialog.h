@@ -148,6 +148,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   // What the blade scene last drew, so it can animate from it.
   double opened_at_ = -1.0;
   int drawn_tab_ = -1;
+  int drawn_page_ = -1;
   int tab_from_ = -1;
   double tab_changed_at_ = 0.0;
   int drawn_selected_ = -1;

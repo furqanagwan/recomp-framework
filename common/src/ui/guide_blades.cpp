@@ -8,9 +8,11 @@
 #include <imgui.h>
 
 #include <rex/cvar.h>
+#include <rex/ui/overlay/achievement_icon_cache.h>
 
 #include "recomp/ui/guide_fonts.h"
 #include "guide_theme.h"
+#include "recomp/ui/guide_resources.h"
 
 REXCVAR_DECLARE(std::string, recomp_gamertag);
 
@@ -46,6 +48,20 @@ constexpr float kRowTextInset = 28.0f;
 constexpr float kRowTextSize = 46.0f;
 constexpr float kRowValueInset = 30.0f;
 constexpr float kRowRule = 2.5f;
+// The bottom of the list, which pages with more than rows use for detail.
+constexpr float kListBottom = 705.0f - 427.5f;
+// Achievements: a summary band, then rows tall enough for an icon, a title
+// and a line of description, in the same type as the menu.
+constexpr float kSummaryHeight = 70.0f;
+constexpr float kAchievementRowHeight = 82.0f;
+constexpr float kAchievementIcon = 62.0f;
+constexpr float kAchievementTitleSize = 38.0f;
+constexpr float kAchievementDetailSize = 28.0f;
+// Settings: a title row, then one row a setting, with the selected setting's
+// description under them.
+constexpr float kSettingRowHeight = 62.0f;
+constexpr float kSettingTextSize = 40.0f;
+constexpr float kDetailTextSize = 28.0f;
 
 // Above the blades: the title on the left, the gamer picture over the middle,
 // the ring of light and the clock on the right.
@@ -251,7 +267,31 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
     drawn_selected_ = selected_;
     selected_from_ = -1;
   }
-  const int selection = page_ == Page::kExitConfirmation ? 3 + exit_choice_ : selected_;
+  // Keep the chosen achievement on screen.
+  const int achievement_rows = static_cast<int>((kListBottom - kRowsTop - kSummaryHeight) /
+                                                kAchievementRowHeight);
+  achievement_scroll_ = std::clamp(achievement_scroll_,
+                                   std::max(0, achievement_selected_ - achievement_rows + 1),
+                                   std::max(0, achievement_selected_));
+  int selection = selected_;
+  switch (page_) {
+    case Page::kExitConfirmation:
+      selection = 3 + exit_choice_;
+      break;
+    case Page::kSettings:
+      selection = 1 + setting_selected_;
+      break;
+    case Page::kAchievements:
+      selection = achievement_selected_ - achievement_scroll_;
+      break;
+    case Page::kRoot:
+      break;
+  }
+  const int page = static_cast<int>(page_);
+  if (drawn_page_ != page) {
+    drawn_page_ = page;
+    drawn_selected_ = -1;
+  }
   if (drawn_selected_ != selection) {
     selected_from_ = drawn_selected_;
     selected_changed_at_ = now;
@@ -355,56 +395,219 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
                                     : (1.0f - tab_t) * screen.Size(60.0f) *
                                           (active > tab_from_ ? 1.0f : -1.0f);
   draw_list->PushClipRect(list_min, list_max, true);
-  const float row_text = screen.Size(kRowTextSize);
-  const auto row_rect = [&](int index) {
-    const float y = kRowsTop + kRowHeight * static_cast<float>(index);
-    return std::pair{ImVec2(list_min.x, screen.At(0.0f, y).y),
-                     ImVec2(list_max.x, screen.At(0.0f, y + kRowHeight).y)};
-  };
-  const auto draw_row = [&](int index, const std::string& label, const std::string& value) {
-    const auto [min, max] = row_rect(index);
-    float highlight = 0.0f;
+  const float text_left = list_min.x + screen.Size(kRowTextInset) + slide;
+  const float text_right = list_max.x - screen.Size(kRowValueInset) + slide;
+
+  // How strongly an on-screen row is highlighted, as it fades on or off.
+  const auto highlight_of = [&](int index) {
     if (index == drawn_selected_) {
-      highlight = focus_t;
-    } else if (index == selected_from_) {
-      highlight = 1.0f - focus_t;
+      return focus_t;
     }
-    draw_list->AddRectFilled(ImVec2(min.x, max.y - std::max(1.0f, screen.Size(kRowRule))),
-                             max, Fade(palette.rule, list_alpha));
+    if (index == selected_from_) {
+      return 1.0f - focus_t;
+    }
+    return 0.0f;
+  };
+  // One row band from top to top + height (reference units), with its rule
+  // and highlight; returns its screen rectangle and whether it reads as chosen.
+  struct Band {
+    ImVec2 min;
+    ImVec2 max;
+    bool focused;
+  };
+  const auto draw_band = [&](float band_top, float band_height, int index) {
+    const ImVec2 min(list_min.x, screen.At(0.0f, band_top).y);
+    const ImVec2 max(list_max.x, screen.At(0.0f, band_top + band_height).y);
+    draw_list->AddRectFilled(ImVec2(min.x, max.y - std::max(1.0f, screen.Size(kRowRule))), max,
+                             Fade(palette.rule, list_alpha));
+    const float highlight = index < 0 ? 0.0f : highlight_of(index);
     if (highlight > 0.0f) {
       draw_list->AddRectFilledMultiColor(min, max, Fade(palette.focus_top, highlight * open),
                                          Fade(palette.focus_top, highlight * open),
                                          Fade(palette.focus_bottom, highlight * open),
                                          Fade(palette.focus_bottom, highlight * open));
     }
-    const float text_y = (min.y + max.y - row_text) * 0.5f - screen.Size(3.0f);
-    const ImU32 text = highlight >= 0.5f ? palette.focus_text : palette.text;
-    DrawText(draw_list, ImVec2(min.x + screen.Size(kRowTextInset) + slide, text_y), row_text,
-             Fade(text, list_alpha), label);
+    return Band{min, max, highlight >= 0.5f};
+  };
+  const auto text_color = [&](bool focused) {
+    return Fade(focused ? palette.focus_text : palette.text, list_alpha);
+  };
+  const auto detail_color = [&](bool focused) {
+    return Fade(focused ? palette.focus_text : palette.value, list_alpha);
+  };
+  // A label on the left and a value on the right, centred in a band.
+  const auto draw_pair = [&](const Band& band, float size, const std::string& label,
+                             const std::string& value) {
+    const float y = (band.min.y + band.max.y - size) * 0.5f - screen.Size(3.0f);
+    DrawText(draw_list, ImVec2(text_left, y), size, text_color(band.focused), label);
     if (!value.empty()) {
-      DrawText(draw_list,
-               ImVec2(max.x - screen.Size(kRowValueInset) - TextWidth(row_text, value) + slide,
-                      text_y),
-               row_text, Fade(highlight >= 0.5f ? palette.focus_text : palette.value, list_alpha),
-               value);
+      DrawText(draw_list, ImVec2(text_right - TextWidth(size, value), y), size,
+               detail_color(band.focused), value);
     }
   };
+  const auto trim = [&](std::string text, float size, float width) {
+    if (TextWidth(size, text) <= width) {
+      return text;
+    }
+    while (!text.empty() && TextWidth(size, text + "...") > width) {
+      text.pop_back();
+    }
+    return text + "...";
+  };
 
-  if (page_ == Page::kExitConfirmation) {
-    const auto [min, max] = row_rect(0);
-    DrawText(draw_list,
-             ImVec2(min.x + screen.Size(kRowTextInset), (min.y + max.y - row_text) * 0.5f),
-             row_text, Fade(palette.text, open), "Leave " + actions_.game_display_name + "?");
-    const auto [note_min, note_max] = row_rect(1);
-    const float note = screen.Size(36.0f);
-    DrawText(draw_list,
-             ImVec2(note_min.x + screen.Size(kRowTextInset), (note_min.y + note_max.y - note) * 0.5f),
-             note, Fade(palette.value, open), "Unsaved progress will be lost.");
-    draw_row(3, "Leave Game", "");
-    draw_row(4, "Cancel", "");
-  } else {
-    for (size_t i = 0; i < entries_.size(); ++i) {
-      draw_row(static_cast<int>(i), entries_[i].label, entries_[i].value);
+  switch (page_) {
+    case Page::kRoot:
+      for (size_t i = 0; i < entries_.size(); ++i) {
+        const float band_top = kRowsTop + kRowHeight * static_cast<float>(i);
+        draw_pair(draw_band(band_top, kRowHeight, static_cast<int>(i)),
+                  screen.Size(kRowTextSize), entries_[i].label, entries_[i].value);
+      }
+      break;
+
+    case Page::kExitConfirmation: {
+      const Band question = draw_band(kRowsTop, kRowHeight, -1);
+      draw_pair(question, screen.Size(kRowTextSize), "Leave " + actions_.game_display_name + "?",
+                "");
+      const Band note = draw_band(kRowsTop + kRowHeight, kRowHeight, -1);
+      const float size = screen.Size(kDetailTextSize + 6.0f);
+      DrawText(draw_list, ImVec2(text_left, (note.min.y + note.max.y - size) * 0.5f), size,
+               detail_color(false), "Unsaved progress will be lost.");
+      draw_pair(draw_band(kRowsTop + kRowHeight * 3.0f, kRowHeight, 3), screen.Size(kRowTextSize),
+                "Leave Game", "");
+      draw_pair(draw_band(kRowsTop + kRowHeight * 4.0f, kRowHeight, 4), screen.Size(kRowTextSize),
+                "Cancel", "");
+      break;
+    }
+
+    case Page::kAchievements: {
+      // Summary: how many, how much of the title's gamerscore, and a bar.
+      const Band summary = draw_band(kRowsTop, kSummaryHeight, -1);
+      const float summary_size = screen.Size(kAchievementTitleSize);
+      const std::string count = std::to_string(unlocked_count_) + " of " +
+                                std::to_string(achievements_.size()) + " unlocked";
+      const std::string score = std::to_string(earned_gamerscore_) + " / " +
+                                std::to_string(total_gamerscore_) + " G";
+      const float summary_y = summary.min.y + screen.Size(6.0f);
+      DrawText(draw_list, ImVec2(text_left, summary_y), summary_size, text_color(false), count);
+      DrawText(draw_list, ImVec2(text_right - TextWidth(summary_size, score), summary_y),
+               summary_size, detail_color(false), score);
+      const float bar_y = summary.max.y - screen.Size(16.0f);
+      const float bar_height = std::max(2.0f, screen.Size(6.0f));
+      const float fraction = achievements_.empty() ? 0.0f
+                                                   : static_cast<float>(unlocked_count_) /
+                                                         static_cast<float>(achievements_.size());
+      draw_list->AddRectFilled(ImVec2(text_left, bar_y), ImVec2(text_right, bar_y + bar_height),
+                               Fade(palette.rule, list_alpha));
+      draw_list->AddRectFilled(ImVec2(text_left, bar_y),
+                               ImVec2(Lerp(text_left, text_right, fraction), bar_y + bar_height),
+                               Fade(palette.focus_bottom, list_alpha));
+
+      const int last = std::min(achievement_scroll_ + achievement_rows,
+                                static_cast<int>(achievements_.size()));
+      for (int i = achievement_scroll_; i < last; ++i) {
+        const AchievementRow& row = achievements_[static_cast<size_t>(i)];
+        const int on_screen = i - achievement_scroll_;
+        const Band band = draw_band(kRowsTop + kSummaryHeight +
+                                        kAchievementRowHeight * static_cast<float>(on_screen),
+                                    kAchievementRowHeight, on_screen);
+        const float icon = screen.Size(kAchievementIcon);
+        const ImVec2 icon_min(text_left, (band.min.y + band.max.y - icon) * 0.5f);
+        const ImVec2 icon_max(icon_min.x + icon, icon_min.y + icon);
+        rex::ui::ImmediateTexture* texture = icons_ ? icons_->GetIcon(row.info) : nullptr;
+        if (!texture) {
+          texture = Artwork("unearnedAchievement.png");
+        }
+        const float icon_alpha = (row.unlocked ? 1.0f : 0.45f) * list_alpha;
+        if (texture) {
+          draw_list->AddImage(reinterpret_cast<ImTextureID>(texture), icon_min, icon_max,
+                              ImVec2(0, 0), ImVec2(1, 1),
+                              Fade(IM_COL32(255, 255, 255, 255), icon_alpha));
+        } else {
+          draw_list->AddRectFilled(icon_min, icon_max, Fade(palette.slate, icon_alpha));
+        }
+
+        const float title_size = screen.Size(kAchievementTitleSize);
+        const float detail_size = screen.Size(kAchievementDetailSize);
+        const std::string gamerscore = std::to_string(row.info.gamerscore) + " G";
+        const float left = icon_max.x + screen.Size(18.0f);
+        const float width = text_right - left - TextWidth(title_size, gamerscore) -
+                            screen.Size(20.0f);
+        const float title_y = band.min.y + screen.Size(8.0f);
+        DrawText(draw_list, ImVec2(left, title_y), title_size, text_color(band.focused),
+                 trim(row.info.label, title_size, width));
+        DrawText(draw_list, ImVec2(text_right - TextWidth(title_size, gamerscore), title_y),
+                 title_size, detail_color(band.focused), gamerscore);
+        const std::string& description =
+            row.unlocked || row.info.unachieved_description.empty()
+                ? row.info.description
+                : row.info.unachieved_description;
+        DrawText(draw_list, ImVec2(left, title_y + title_size + screen.Size(2.0f)), detail_size,
+                 detail_color(band.focused),
+                 trim(description, detail_size, text_right - left));
+      }
+
+      // Where in the list this is.
+      if (static_cast<int>(achievements_.size()) > achievement_rows) {
+        const float track_top = screen.At(0.0f, kRowsTop + kSummaryHeight).y;
+        const float track_bottom = list_max.y;
+        const float total = static_cast<float>(achievements_.size());
+        const float thumb_top =
+            Lerp(track_top, track_bottom, static_cast<float>(achievement_scroll_) / total);
+        const float thumb_bottom =
+            Lerp(track_top, track_bottom, static_cast<float>(last) / total);
+        const float x = list_max.x - screen.Size(8.0f);
+        draw_list->AddRectFilled(ImVec2(x, thumb_top), ImVec2(x + screen.Size(4.0f), thumb_bottom),
+                                 Fade(palette.slate, list_alpha));
+      }
+      break;
+    }
+
+    case Page::kSettings: {
+      const char* title = settings_section_ == "controls"     ? "Controls"
+                          : settings_section_ == "game_files" ? "Game Files"
+                                                              : "Scaling & Display";
+      draw_pair(draw_band(kRowsTop, kSettingRowHeight, -1), screen.Size(kSettingTextSize + 4.0f),
+                title, "");
+      for (size_t i = 0; i < setting_rows_.size(); ++i) {
+        const auto& row = setting_rows_[i];
+        std::string value;
+        if (!row.cvar.empty()) {
+          value = rex::cvar::GetFlagByName(row.cvar);
+          for (const auto& choice : row.choices) {
+            if (choice.first == value) {
+              value = choice.second;
+            }
+          }
+        }
+        const float band_top = kRowsTop + kSettingRowHeight * static_cast<float>(i + 1);
+        draw_pair(draw_band(band_top, kSettingRowHeight, static_cast<int>(i + 1)),
+                  screen.Size(kSettingTextSize), row.label, value);
+      }
+
+      // The selected setting's description, then what happened.
+      float detail_y = screen.At(0.0f, kRowsTop + kSettingRowHeight *
+                                           static_cast<float>(setting_rows_.size() + 1))
+                           .y +
+                       screen.Size(10.0f);
+      const float size = screen.Size(kDetailTextSize);
+      if (!setting_rows_.empty()) {
+        const std::string& description =
+            setting_rows_[static_cast<size_t>(setting_selected_)].description;
+        draw_list->AddText(DisplayFont(), size, ImVec2(text_left, detail_y), detail_color(false),
+                           description.c_str(), nullptr, text_right - text_left);
+        detail_y += size * 2.2f;
+      }
+      std::string status = settings_status_;
+      for (const auto& [cvar, initial] : settings_at_open_) {
+        if (rex::cvar::GetFlagByName(cvar) != initial) {
+          status += status.empty() ? "Restart required." : " Restart required.";
+          break;
+        }
+      }
+      if (!status.empty()) {
+        DrawText(draw_list, ImVec2(text_left, detail_y), size, text_color(false), status);
+      }
+      break;
     }
   }
   draw_list->PopClipRect();
@@ -415,10 +618,26 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
     ImU32 color;
     const char* label;
   };
-  std::vector<Hint> hints = {{"A", IM_COL32(0x4C, 0xB0, 0x2A, 255), "Select"},
-                             {"B", IM_COL32(0xD8, 0x2C, 0x2C, 255), "Back"}};
-  if (page_ == Page::kRoot && actions_.exit_game) {
-    hints.push_back({"Y", IM_COL32(0xF0, 0xB0, 0x1C, 255), "Leave Game"});
+  const Hint a_select = {"A", IM_COL32(0x4C, 0xB0, 0x2A, 255), "Select"};
+  const Hint b_back = {"B", IM_COL32(0xD8, 0x2C, 0x2C, 255), "Back"};
+  std::vector<Hint> hints;
+  switch (page_) {
+    case Page::kRoot:
+      hints = {a_select, b_back};
+      if (actions_.exit_game) {
+        hints.push_back({"Y", IM_COL32(0xF0, 0xB0, 0x1C, 255), "Leave Game"});
+      }
+      break;
+    case Page::kExitConfirmation:
+      hints = {a_select, b_back};
+      break;
+    case Page::kAchievements:
+      hints = {b_back};
+      break;
+    case Page::kSettings:
+      hints = {{"A", a_select.color, "Change"}, b_back,
+               {"X", IM_COL32(0x2A, 0x7A, 0xD8, 255), "Save"}};
+      break;
   }
   const float legend_text = screen.Size(kLegendTextSize);
   const float glyph = screen.Size(kLegendGlyph);

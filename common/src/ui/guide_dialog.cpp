@@ -593,29 +593,6 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   }
   ImGuiGamepadBridge::FeedPrimaryController(io);
 
-  const int visible_rows =
-      std::min(kAchievementsVisibleRows, static_cast<int>(achievements_.size()));
-  float panel_width = std::min(theme_.panel_width, io.DisplaySize.x - 80.0f);
-  float body_height = 0.0f;
-  switch (page_) {
-    case Page::kRoot:
-      body_height = theme_.entry_height * static_cast<float>(std::max(size_t{6}, entries_.size()));
-      break;
-    case Page::kSettings:
-      body_height = theme_.entry_height * 9.0f;
-      break;
-    case Page::kAchievements:
-      panel_width = std::min(kAchievementsWidth, io.DisplaySize.x - 80.0f);
-      body_height = kSummaryHeight + kAchievementRowHeight * static_cast<float>(visible_rows);
-      break;
-    case Page::kExitConfirmation:
-      body_height = 80.0f + theme_.entry_height * 2.0f;
-      break;
-  }
-  const ImVec2 panel_min((io.DisplaySize.x - panel_width) * 0.5f,
-                         (io.DisplaySize.y - body_height) * 0.5f);
-  const ImVec2 panel_max(panel_min.x + panel_width, panel_min.y + body_height);
-
   if (GuideFont())
     ImGui::PushFont(GuideFont());
   ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
@@ -629,37 +606,7 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   // The game keeps rendering behind the guide, dimmed as on a console.
   draw_list->AddRectFilled(ImVec2(0.0f, 0.0f), io.DisplaySize, theme_.dim);
 
-  if (page_ == Page::kRoot || page_ == Page::kExitConfirmation) {
-    DrawBladeScene(draw_list, io);
-  } else {
-    DrawChrome(draw_list, panel_min, panel_max);
-
-    if (theme_.panel_top == theme_.panel_bottom) {
-      draw_list->AddRectFilled(panel_min, panel_max, theme_.panel_top, theme_.rounding);
-    } else {
-      draw_list->AddRectFilledMultiColor(panel_min, panel_max, theme_.panel_top, theme_.panel_top,
-                                         theme_.panel_bottom, theme_.panel_bottom);
-    }
-
-    const float list_x = DrawTabs(draw_list, panel_min, panel_max);
-    const float list_width = panel_width - 3.0f * theme_.tab_width;
-    const ImVec2 list_min(list_x, panel_min.y);
-    switch (page_) {
-      case Page::kRoot:
-        DrawEntries(draw_list, list_min, list_width);
-        break;
-      case Page::kSettings:
-        DrawSettings(draw_list, list_min, list_width);
-        break;
-      case Page::kAchievements:
-        DrawAchievements(draw_list, list_min, list_width, visible_rows);
-        break;
-      case Page::kExitConfirmation:
-        DrawExitConfirmation(draw_list, list_min, list_width);
-        break;
-    }
-    DrawHints(draw_list, ImVec2(panel_min.x, panel_max.y), panel_width);
-  }
+  DrawBladeScene(draw_list, io);
   ImGui::End();
   if (GuideFont())
     ImGui::PopFont();
@@ -675,12 +622,14 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
   }
 
   if (page_ != Page::kExitConfirmation) {
-    const bool left = page_ == Page::kSettings
-                          ? Pressed({ImGuiKey_GamepadL1}, false)
-                          : Pressed({ImGuiKey_GamepadL1, ImGuiKey_LeftArrow}, false);
-    const bool right = page_ == Page::kSettings
-                           ? Pressed({ImGuiKey_GamepadR1}, false)
-                           : Pressed({ImGuiKey_GamepadR1, ImGuiKey_RightArrow}, false);
+    // Left and right move between tabs like the bumpers, from the keyboard,
+    // the D-pad or the stick.
+    const bool left = Pressed({ImGuiKey_GamepadL1, ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft,
+                               ImGuiKey_GamepadLStickLeft},
+                              false);
+    const bool right = Pressed({ImGuiKey_GamepadR1, ImGuiKey_RightArrow,
+                                ImGuiKey_GamepadDpadRight, ImGuiKey_GamepadLStickRight},
+                               false);
     if (left != right) {
       SwitchTab(right ? 1 : -1);
       return;
@@ -694,22 +643,17 @@ void GuideDialog::OnDraw(ImGuiIO& io) {
       page_ = Page::kRoot;
       return;
     }
-    const bool chosen = HandleInput(setting_selected_, static_cast<int>(setting_rows_.size()), 0);
-    const bool left =
-        Pressed({ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadLStickLeft}, true);
-    const bool right = Pressed(
-        {ImGuiKey_RightArrow, ImGuiKey_GamepadDpadRight, ImGuiKey_GamepadLStickRight}, true);
-    if (chosen)
+    // A steps a setting through its choices.
+    if (HandleInput(setting_selected_, static_cast<int>(setting_rows_.size()), 0)) {
       ChangeSetting(1);
-    else if (left != right)
-      ChangeSetting(right ? 1 : -1);
+    }
     if (Pressed({ImGuiKey_GamepadFaceLeft, ImGuiKey_S}, false))
       SaveSettings();
     return;
   }
 
   if (page_ == Page::kAchievements) {
-    HandleInput(achievement_selected_, static_cast<int>(achievements_.size()), visible_rows);
+    HandleInput(achievement_selected_, static_cast<int>(achievements_.size()), 6);
     if (back) {
       page_ = Page::kRoot;
     }
