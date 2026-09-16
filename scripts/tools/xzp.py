@@ -13,11 +13,14 @@ Layout, worked out from retail packages (numbers big-endian unless noted):
 
   'XUIZ', u32 version, u32 package size, u32 unused, u32 name table size,
   u16 entry count, u16 unused, u32 first data offset, u16 unused,
-  then one record per entry, from offset 0x1E:
+  then one record per entry. Each record gives its data before its name:
 
-  version 1 (Blades):  u16 name length (little-endian), UTF-16LE name,
-                       u8 unused, u16 data size, u32 data offset
-  version 3 (NXE, Metro): u8 name length, name, u32 data size, u32 data offset
+  version 1 (Blades), from 0x17:  u24 data size, u32 data offset,
+                                  u16 name length (little-endian), UTF-16LE name
+  version 3 (NXE, Metro), 0x16:   u32 data size, u32 data offset,
+                                  u8 name length, name
+
+  Offsets are relative to the data section, which follows the name table.
 """
 import struct
 import sys
@@ -45,21 +48,21 @@ def read(path: Path):
     base = names_size + 0x16
 
     entries = []
-    offset = 0x1E
+    offset = 0x17 if version == 1 else 0x16
     for index in range(count):
         if version == 1:
+            size = int.from_bytes(data[offset:offset + 3], "big")
+            data_offset = struct.unpack_from(">I", data, offset + 3)[0]
+            offset += 7
             name_length = struct.unpack_from("<H", data, offset)[0]
             name = data[offset + 2:offset + 2 + name_length * 2].decode("utf-16-le", "replace")
             offset += 2 + name_length * 2
-            size = struct.unpack_from(">H", data, offset + 1)[0]
-            data_offset = struct.unpack_from(">I", data, offset + 3)[0]
-            offset += 7
         else:
+            size, data_offset = struct.unpack_from(">II", data, offset)
+            offset += 8
             name_length = data[offset]
             name = data[offset + 1:offset + 1 + name_length].decode("latin-1")
             offset += 1 + name_length
-            size, data_offset = struct.unpack_from(">II", data, offset)
-            offset += 8
         if data_offset + base + size > len(data):
             # The last record is a terminator rather than a file.
             print(f"{path.name}: stopping at record {index} of {count}", file=sys.stderr)

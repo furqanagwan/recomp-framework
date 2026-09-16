@@ -113,12 +113,14 @@ void GuideResources::LoadFolder(const std::filesystem::path& path) {
 //
 //   u32 version, u32 package size, u32 unused, u32 name table size,
 //   u16 entry count, u16 unused, u32 first data offset, u16 unused,
-//   then one record per entry from 0x1E:
-//     version 1 (Blades):     u16 name length (little-endian), UTF-16LE name,
-//                             u8 unused, u16 data size, u32 data offset
-//     version 3 (NXE, Metro): u8 name length, name, u32 data size, u32 offset
+//   then one record per entry, each giving its data before its name:
 //
-// Offsets are relative to the start of the data, which follows the name table.
+//     version 1 (Blades), from 0x17:  u24 size, u32 offset,
+//                                     u16 name length (little-endian, the only
+//                                     little-endian field), UTF-16LE name
+//     version 3 (NXE, Metro), 0x16:   u32 size, u32 offset, u8 name length, name
+//
+// Offsets are relative to the data, which follows the name table.
 void GuideResources::LoadPackage(const std::filesystem::path& path) {
   const std::vector<uint8_t> data = ReadFile(path);
   if (data.size() < 0x1E || std::memcmp(data.data(), "XUIZ", 4) != 0) {
@@ -128,24 +130,28 @@ void GuideResources::LoadPackage(const std::filesystem::path& path) {
   const uint32_t version = ReadBE32(data, 4);
   if (version != 1 && version != 3) {
     REXLOG_WARN("Guide: {} is an XUI package of version {}, which this does not read",
-                   path.string(), version);
+                path.string(), version);
     return;
   }
   const uint16_t count = ReadBE16(data, 0x14);
   const size_t base = ReadBE32(data, 0x10) + 0x16;
 
-  size_t offset = 0x1E;
+  size_t offset = version == 1 ? 0x17 : 0x16;
   for (uint16_t index = 0; index < count; ++index) {
     std::string name;
     size_t size = 0;
     size_t data_offset = 0;
     if (version == 1) {
-      if (offset + 2 > data.size()) {
+      if (offset + 9 > data.size()) {
         break;
       }
-      // The only little-endian field in the package.
-      const size_t length = static_cast<size_t>(data[offset]) | (static_cast<size_t>(data[offset + 1]) << 8);
-      if (offset + 2 + length * 2 + 7 > data.size()) {
+      size = (static_cast<size_t>(data[offset]) << 16) |
+             (static_cast<size_t>(data[offset + 1]) << 8) | data[offset + 2];
+      data_offset = ReadBE32(data, offset + 3);
+      offset += 7;
+      const size_t length =
+          static_cast<size_t>(data[offset]) | (static_cast<size_t>(data[offset + 1]) << 8);
+      if (offset + 2 + length * 2 > data.size()) {
         break;
       }
       name.reserve(length);
@@ -154,22 +160,19 @@ void GuideResources::LoadPackage(const std::filesystem::path& path) {
         name.push_back(static_cast<char>(data[offset + 2 + i * 2]));
       }
       offset += 2 + length * 2;
-      size = ReadBE16(data, offset + 1);
-      data_offset = ReadBE32(data, offset + 3);
-      offset += 7;
     } else {
-      if (offset + 1 > data.size()) {
+      if (offset + 9 > data.size()) {
         break;
       }
+      size = ReadBE32(data, offset);
+      data_offset = ReadBE32(data, offset + 4);
+      offset += 8;
       const size_t length = data[offset];
-      if (offset + 1 + length + 8 > data.size()) {
+      if (offset + 1 + length > data.size()) {
         break;
       }
       name.assign(reinterpret_cast<const char*>(data.data() + offset + 1), length);
       offset += 1 + length;
-      size = ReadBE32(data, offset);
-      data_offset = ReadBE32(data, offset + 4);
-      offset += 8;
     }
     if (base + data_offset + size > data.size()) {
       // The last record is a terminator rather than a file.
