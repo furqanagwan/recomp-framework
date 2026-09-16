@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <string_view>
 #include <string>
 
 #include <rex/kernel/xam/system_ui.h>
@@ -54,7 +55,9 @@ class XboxGuide {
   void Install(rex::ui::ImGuiDrawer* drawer, Actions actions);
   void Uninstall();
 
-  void Open();
+  // The reason names what asked for the guide, for the log: a chord, a title's
+  // request, a bind.
+  void Open(std::string_view reason = "a request");
   void Close();
   void Toggle();
   bool IsOpen() const { return menu_ != nullptr; }

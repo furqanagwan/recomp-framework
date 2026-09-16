@@ -133,7 +133,7 @@ void GameRecompApp::OnPostSetup() {
                      .runtime = runtime(),
                  });
   menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
-                      &app_context(), [this] { guide_.Open(); });
+                      &app_context(), [this] { guide_.Open("View + Menu"); });
 }
 
 void GameRecompApp::OnShutdown() {

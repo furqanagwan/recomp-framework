@@ -47,7 +47,7 @@ void XboxGuide::ScheduleDebugOpen() {
   std::thread([this, seconds] {
     std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
     actions_.on_ui_thread([this] {
-      Open();
+      Open("recomp_guide_open_after_seconds");
       if (menu_ && REXCVAR_GET(recomp_guide_open_page) == "achievements") {
         menu_->ShowAchievements();
       }
@@ -65,10 +65,11 @@ void XboxGuide::Uninstall() {
   drawer_ = nullptr;
 }
 
-void XboxGuide::Open() {
+void XboxGuide::Open(std::string_view reason) {
   if (menu_ || !drawer_) {
     return;
   }
+  REXLOG_INFO("Guide: opening for {}", reason);
   menu_ = new GuideDialog(
       drawer_, GuideActions{
                    .game_display_name = actions_.game_display_name,
@@ -101,14 +102,12 @@ void XboxGuide::Toggle() {
   if (menu_) {
     Close();
   } else {
-    Open();
+    Open("a bind");
   }
 }
 
 void XboxGuide::Show(SystemUi ui) {
-  REXLOG_INFO("Guide: showing the guide for the {} screen",
-              rex::kernel::xam::SystemUiName(ui));
-  Open();
+  Open(rex::kernel::xam::SystemUiName(ui));
   if (ui == SystemUi::kAchievements && menu_) {
     // The only screen the guide has of its own beyond the root one.
     menu_->ShowAchievements();
