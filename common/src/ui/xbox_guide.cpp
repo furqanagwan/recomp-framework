@@ -14,6 +14,11 @@ REXCVAR_DEFINE_DOUBLE(recomp_guide_open_after_seconds, 0.0, "Recomp",
                       "scripted runs. 0 disables it.")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
+REXCVAR_DEFINE_STRING(recomp_guide_open_page, "root", "Recomp",
+                      "Which screen recomp_guide_open_after_seconds opens on: root or "
+                      "achievements.")
+    .allowed({"root", "achievements"});
+
 namespace recomp {
 
 using rex::kernel::xam::SystemUi;
@@ -41,7 +46,12 @@ void XboxGuide::ScheduleDebugOpen() {
   REXLOG_INFO("Guide: opening in {:.1f} s (recomp_guide_open_after_seconds)", seconds);
   std::thread([this, seconds] {
     std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
-    actions_.on_ui_thread([this] { Open(); });
+    actions_.on_ui_thread([this] {
+      Open();
+      if (menu_ && REXCVAR_GET(recomp_guide_open_page) == "achievements") {
+        menu_->ShowAchievements();
+      }
+    });
   }).detach();
 }
 
