@@ -236,8 +236,8 @@ void GuideDialog::BuildEntries() {
       }
     }
   } else {
-    entries_.push_back({"Resume Game", "", nullptr, true, Page::kRoot});
     entries_.push_back({"Leave Game", "", nullptr, false, Page::kExitConfirmation});
+    entries_.push_back({"Resume Game", "", nullptr, true, Page::kRoot});
   }
 }
 

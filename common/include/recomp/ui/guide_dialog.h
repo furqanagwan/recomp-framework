@@ -145,6 +145,14 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   int total_gamerscore_ = 0;
 
   int frames_drawn_ = 0;
+  // What the blade scene last drew, so it can animate from it.
+  double opened_at_ = -1.0;
+  int drawn_tab_ = -1;
+  int tab_from_ = -1;
+  double tab_changed_at_ = 0.0;
+  int drawn_selected_ = -1;
+  int selected_from_ = -1;
+  double selected_changed_at_ = 0.0;
   std::vector<ImGuiKey> masked_keys_;
 
   Page page_ = Page::kRoot;

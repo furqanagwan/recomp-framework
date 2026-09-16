@@ -22,6 +22,7 @@ namespace recomp {
 namespace {
 
 ImFont* guide_font = nullptr;
+ImFont* guide_display_font = nullptr;
 
 // The guide a Series X puts over a 360 title: a light list between blue tabs,
 // the selected row in the dashboard's green, and the title, gamer tile and
@@ -91,6 +92,7 @@ GuideTheme BladesTheme() {
 
 void ConfigureGuideFonts(ImFontAtlas* atlas) {
   guide_font = nullptr;
+  guide_display_font = nullptr;
   std::filesystem::path path(REXCVAR_GET(recomp_guide_font));
 #if defined(_WIN32)
   if (path.empty()) path = "C:/Windows/Fonts/segoeui.ttf";
@@ -102,12 +104,18 @@ void ConfigureGuideFonts(ImFontAtlas* atlas) {
     config.OversampleV = 2;
     config.PixelSnapH = false;
     guide_font = atlas->AddFontFromFileTTF(path.string().c_str(), 16.0f, &config);
+    ImFontConfig display_config;
+    display_config.OversampleH = 1;
+    display_config.OversampleV = 1;
+    guide_display_font = atlas->AddFontFromFileTTF(path.string().c_str(), 96.0f, &display_config);
     if (guide_font) REXLOG_INFO("Guide: using font {}", path.string());
   }
   if (!guide_font) REXLOG_WARN("Guide: no usable guide font; using the runtime font");
 }
 
 ImFont* GuideFont() { return guide_font; }
+
+ImFont* GuideDisplayFont() { return guide_display_font; }
 
 GuideTheme GuideThemeByName(const std::string& name) {
   std::string lower = name;

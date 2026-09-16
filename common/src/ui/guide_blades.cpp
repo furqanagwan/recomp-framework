@@ -1,13 +1,15 @@
 #include "recomp/ui/guide_dialog.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <ctime>
 
 #include <imgui.h>
 
 #include <rex/cvar.h>
-#include <rex/ui/immediate_drawer.h>
 
+#include "recomp/ui/guide_fonts.h"
 #include "guide_theme.h"
 
 REXCVAR_DECLARE(std::string, recomp_gamertag);
@@ -16,126 +18,163 @@ namespace recomp {
 
 namespace {
 
-// The guide's own scene, hud.xex's GuideMain.xur (system software 17559),
-// lays everything out on an 852 by 480 canvas. These are its numbers.
-constexpr float kCanvasWidth = 852.0f;
-constexpr float kCanvasHeight = 480.0f;
+// The guide a Series X draws over a backward-compatible title, measured from a
+// capture of one. Numbers are pixels on that 1512 by 855 capture, relative to
+// its centre, and scale with the screen so the guide covers the same share of
+// it at 720p, 1080p or 4K.
+constexpr float kReferenceWidth = 1512.0f;
+constexpr float kReferenceHeight = 855.0f;
 
-// Blade_Center, the light blade the current tab's list sits on.
-constexpr float kCenterX = 231.0f;
-constexpr float kCenterY = 122.0f;
-constexpr float kCenterWidth = 386.0f;
-constexpr float kBladeHeight = 235.0f;
-// Blade_Focus, the strip down the centre blade's left edge that carries the
-// current tab's name.
-constexpr float kFocusX = 243.0f;
-constexpr float kFocusY = 135.0f;
-constexpr float kFocusWidth = 42.0f;
-constexpr float kFocusHeight = 209.0f;
-// The tab's own scene: a column of 28-high buttons.
-constexpr float kListX = 285.0f;
-constexpr float kListY = 135.0f;
-constexpr float kListWidth = 323.0f;
-constexpr float kRowHeight = 28.0f;
-// The other tabs are grey blades fanned out 30 apart on either side, each
-// mostly under its neighbour, so a strip of each shows.
-constexpr float kBladeStep = 30.0f;
-constexpr float kSideBladeWidth = 72.0f;
-// Tab names: 11 point #EBEBEB on the grey blades, 12 point #586066 on the
-// focus strip, starting 146 down.
-constexpr float kTabTextY = 146.0f;
-const ImU32 kTabText = IM_COL32(0xEB, 0xEB, 0xEB, 0xFF);
-const ImU32 kFocusText = IM_COL32(0x58, 0x60, 0x66, 0xFF);
-// The "Xbox Guide" label above the blades: Label_Head, 12 point white at 92%.
-constexpr float kHeaderX = 243.0f;
-constexpr float kHeaderY = 103.0f;
-const ImU32 kHeaderText = IM_COL32(0xFF, 0xFF, 0xFF, 0xEB);
+// The blades: one band across the middle of the screen, 1170 wide.
+constexpr float kBladesLeft = 168.0f - 756.0f;
+constexpr float kBladesRight = 1338.0f - 756.0f;
+constexpr float kBladesTop = 140.0f - 427.5f;
+constexpr float kBladesBottom = 705.0f - 427.5f;
+// A tab not in view is a slate blade: 82 wide on the left, 88 on the right.
+constexpr float kLeftTabWidth = 82.0f;
+constexpr float kRightTabWidth = 88.0f;
+// The tab in view is a pale blade, 115 wide, against its list.
+constexpr float kActiveTabWidth = 115.0f;
+constexpr float kTabLabelTop = 172.0f - 427.5f;
+constexpr float kTabLabelSize = 40.0f;
+constexpr float kActiveTabLabelSize = 42.0f;
 
-// huduiskin.xex's skin scene, for the pieces GuideMain names by visual.
-//
-// XuiButtonGuide, one row: a 1-high #D2D5D9 rule above and below; text 12
-// point at (10, 2), #333A40 with a #EBEBEB shadow at 59%; focused, a #008A00
-// highlight from 1 above the row to its bottom and the text turns #EBEBEB.
-const ImU32 kRowRule = IM_COL32(0xD2, 0xD5, 0xD9, 0xFF);
-const ImU32 kRowText = IM_COL32(0x33, 0x3A, 0x40, 0xFF);
-const ImU32 kRowTextShadow = IM_COL32(0xEB, 0xEB, 0xEB, 0x96);
-const ImU32 kRowFocus = IM_COL32(0x00, 0x8A, 0x00, 0xFF);
-const ImU32 kRowFocusText = IM_COL32(0xEB, 0xEB, 0xEB, 0xFF);
-const ImU32 kRowValueText = IM_COL32(0x65, 0x6D, 0x72, 0xFF);
-constexpr float kRowTextX = 10.0f;
-constexpr float kRowTextY = 2.0f;
-constexpr float kRowTextHeight = 22.0f;
-// btn_Count_achiev puts the count in a second label ending 283 across.
-constexpr float kRowValueRight = 283.0f;
-// HUD_Bladedark and HUD_Bladegrey are nine-grids over the blade textures,
-// with these corners in texture pixels and canvas units alike.
-constexpr float kDarkGridEdge = 25.0f;
-constexpr float kGreyGridSide = 30.0f;
-constexpr float kGreyGridEnd = 25.0f;
+// Rows: 75 high from the top of the list, text 46 high set 28 in.
+constexpr float kRowsTop = 143.0f - 427.5f;
+constexpr float kRowHeight = 75.0f;
+constexpr float kRowTextInset = 28.0f;
+constexpr float kRowTextSize = 46.0f;
+constexpr float kRowValueInset = 30.0f;
+constexpr float kRowRule = 2.5f;
 
-// XUI point sizes are points: 4/3 of a canvas unit.
-constexpr float kPointToCanvas = 4.0f / 3.0f;
+// Above the blades: the title on the left, the gamer picture over the middle,
+// the ring of light and the clock on the right.
+constexpr float kTitleLeft = 248.0f - 756.0f;
+constexpr float kTitleTop = 64.0f - 427.5f;
+constexpr float kTitleSize = 50.0f;
+constexpr float kTileLeft = 706.0f - 756.0f;
+constexpr float kTileTop = 42.0f - 427.5f;
+constexpr float kTileSize = 90.0f;
+constexpr float kRingX = 1232.0f - 756.0f;
+constexpr float kRingY = 65.0f - 427.5f;
+constexpr float kRingRadius = 20.0f;
+constexpr float kClockRight = 1252.0f - 756.0f;
+constexpr float kClockTop = 90.0f - 427.5f;
+constexpr float kClockSize = 48.0f;
 
-const char* const kTabNames[] = {"Games & Apps", "Home", "Settings"};
+// The legend under the blades.
+constexpr float kLegendLeft = 262.0f - 756.0f;
+constexpr float kLegendY = 745.0f - 427.5f;
+constexpr float kLegendGlyph = 36.0f;
+constexpr float kLegendTextSize = 44.0f;
+constexpr float kLegendGlyphGap = 16.0f;
+constexpr float kLegendItemGap = 30.0f;
 
-struct Canvas {
-  ImVec2 origin;
-  float scale;
+// How long the console takes: the guide opening, tabs sliding, a row's
+// highlight arriving (XuiButtonGuide's Focus runs 12 frames).
+constexpr double kOpenSeconds = 0.22;
+constexpr double kTabSeconds = 0.20;
+constexpr double kFocusSeconds = 0.20;
 
-  ImVec2 At(float x, float y) const { return ImVec2(origin.x + x * scale, origin.y + y * scale); }
-  float Size(float units) const { return units * scale; }
-  float Font(float points) const { return points * kPointToCanvas * scale; }
+struct Palette {
+  ImU32 slate;
+  ImU32 slate_text;
+  ImU32 pale;
+  ImU32 pale_text;
+  ImU32 list_top;
+  ImU32 list_bottom;
+  ImU32 rule;
+  ImU32 text;
+  ImU32 value;
+  ImU32 focus_top;
+  ImU32 focus_bottom;
+  ImU32 focus_text;
+  ImU32 chrome;
+  ImU32 shadow;
 };
 
-Canvas FitCanvas(const ImGuiIO& io) {
-  const float scale = std::min(io.DisplaySize.x / kCanvasWidth, io.DisplaySize.y / kCanvasHeight);
-  return {ImVec2((io.DisplaySize.x - kCanvasWidth * scale) * 0.5f,
-                 (io.DisplaySize.y - kCanvasHeight * scale) * 0.5f),
-          scale};
+// Colours from the capture, checked against the 360 skin's own values where
+// the two agree (the row rule #D2D5D9, the focus green #008A00).
+const Palette kMetro = {
+    IM_COL32(0x66, 0x7C, 0x8B, 0xFF), IM_COL32(0xEE, 0xF2, 0xF4, 0xFF),
+    IM_COL32(0xC2, 0xC9, 0xCD, 0xFF), IM_COL32(0x3E, 0x4A, 0x52, 0xFF),
+    IM_COL32(0xEC, 0xF0, 0xF2, 0xFF), IM_COL32(0xDA, 0xE0, 0xE3, 0xFF),
+    IM_COL32(0xD2, 0xD5, 0xD9, 0xFF), IM_COL32(0x2E, 0x34, 0x38, 0xFF),
+    IM_COL32(0x2E, 0x34, 0x38, 0xFF), IM_COL32(0x2C, 0xB0, 0x2C, 0xFF),
+    IM_COL32(0x00, 0x8A, 0x00, 0xFF), IM_COL32(0xFF, 0xFF, 0xFF, 0xFF),
+    IM_COL32(0xF4, 0xF4, 0xF4, 0xFF), IM_COL32(0x00, 0x00, 0x00, 0x90),
+};
+
+Palette BladesPalette(const GuideTheme& theme) {
+  Palette palette = kMetro;
+  palette.slate = theme.tab_fill;
+  palette.slate_text = theme.tab_text;
+  palette.pale = theme.tab_active_fill;
+  palette.pale_text = theme.tab_active_text;
+  palette.list_top = theme.panel_top;
+  palette.list_bottom = theme.panel_bottom;
+  palette.rule = theme.separator;
+  palette.text = theme.text;
+  palette.value = theme.text_dim;
+  palette.focus_top = theme.selection;
+  palette.focus_bottom = theme.selection;
+  palette.focus_text = theme.text_selected;
+  return palette;
+}
+
+ImU32 Fade(ImU32 color, float alpha) {
+  const float a = static_cast<float>((color >> IM_COL32_A_SHIFT) & 0xFF) * std::clamp(alpha, 0.0f, 1.0f);
+  return (color & ~IM_COL32_A_MASK) | (static_cast<ImU32>(a) << IM_COL32_A_SHIFT);
+}
+
+float EaseOut(double t) {
+  const float x = std::clamp(static_cast<float>(t), 0.0f, 1.0f);
+  return 1.0f - (1.0f - x) * (1.0f - x) * (1.0f - x);
+}
+
+float Lerp(float a, float b, float t) { return a + (b - a) * t; }
+
+struct Screen {
+  ImVec2 center;
+  float scale;
+
+  ImVec2 At(float x, float y) const { return ImVec2(center.x + x * scale, center.y + y * scale); }
+  float Size(float units) const { return units * scale; }
+};
+
+Screen FitScreen(const ImGuiIO& io) {
+  return {ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+          std::min(io.DisplaySize.x / kReferenceWidth, io.DisplaySize.y / kReferenceHeight)};
+}
+
+ImFont* DisplayFont() {
+  if (ImFont* font = GuideDisplayFont()) {
+    return font;
+  }
+  return ImGui::GetFont();
 }
 
 void DrawText(ImDrawList* draw_list, ImVec2 position, float size, ImU32 color,
               const std::string& text) {
-  draw_list->AddText(ImGui::GetFont(), size, position, color, text.c_str());
+  draw_list->AddText(DisplayFont(), size, position, color, text.c_str());
 }
 
 float TextWidth(float size, const std::string& text) {
-  return ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text.c_str()).x;
+  return DisplayFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text.c_str()).x;
 }
 
-// A tab name runs down its blade, reading top to bottom as on the console.
+// A tab name runs down its blade, reading top to bottom.
 void DrawTextDown(ImDrawList* draw_list, float center_x, float top, float size, ImU32 color,
                   const std::string& text) {
   const int first = draw_list->VtxBuffer.Size;
   const ImVec2 origin(center_x, top);
-  draw_list->AddText(ImGui::GetFont(), size, ImVec2(origin.x, origin.y - size * 0.5f), color,
+  draw_list->AddText(DisplayFont(), size, ImVec2(origin.x, origin.y - size * 0.5f), color,
                      text.c_str());
   for (int i = first; i < draw_list->VtxBuffer.Size; ++i) {
     ImVec2& position = draw_list->VtxBuffer[i].pos;
     const float x = position.x - origin.x;
     const float y = position.y - origin.y;
     position = ImVec2(origin.x - y, origin.y + x);
-  }
-}
-
-// A XuiNineGrid: the texture's corners stay their size and its middle
-// stretches, so a 100 by 250 blade dresses a blade of any size.
-void DrawNineSlice(ImDrawList* draw_list, rex::ui::ImmediateTexture* texture, ImVec2 min,
-                   ImVec2 max, float side, float end, float scale) {
-  const auto id = reinterpret_cast<ImTextureID>(texture);
-  const float u = side / static_cast<float>(texture->width);
-  const float v = end / static_cast<float>(texture->height);
-  const float dx = std::min(side * scale, (max.x - min.x) * 0.5f);
-  const float dy = std::min(end * scale, (max.y - min.y) * 0.5f);
-  const float xs[] = {min.x, min.x + dx, max.x - dx, max.x};
-  const float ys[] = {min.y, min.y + dy, max.y - dy, max.y};
-  const float us[] = {0.0f, u, 1.0f - u, 1.0f};
-  const float vs[] = {0.0f, v, 1.0f - v, 1.0f};
-  for (int row = 0; row < 3; ++row) {
-    for (int column = 0; column < 3; ++column) {
-      draw_list->AddImage(id, ImVec2(xs[column], ys[row]), ImVec2(xs[column + 1], ys[row + 1]),
-                          ImVec2(us[column], vs[row]), ImVec2(us[column + 1], vs[row + 1]));
-    }
   }
 }
 
@@ -155,183 +194,240 @@ std::string Clock() {
   return std::strftime(buffer, sizeof(buffer), "%H:%M", &local) ? buffer : "";
 }
 
+// Where each blade's left and right edges sit with a given tab in view: the
+// tabs before it stacked on the left, the pale blade and list, the rest on the
+// right. Index 3 is the list.
+std::array<std::pair<float, float>, 4> Layout(int active) {
+  std::array<std::pair<float, float>, 4> edges{};
+  float x = kBladesLeft;
+  for (int i = 0; i < active; ++i) {
+    edges[i] = {x, x + kLeftTabWidth};
+    x += kLeftTabWidth;
+  }
+  edges[active] = {x, x + kActiveTabWidth};
+  x += kActiveTabWidth;
+  float right = kBladesRight;
+  for (int i = 2; i > active; --i) {
+    edges[i] = {right - kRightTabWidth, right};
+    right -= kRightTabWidth;
+  }
+  edges[3] = {x, right};
+  return edges;
+}
+
+void DrawGlyph(ImDrawList* draw_list, ImVec2 center, float diameter, ImU32 color,
+               const char* letter, float alpha) {
+  const float radius = diameter * 0.5f;
+  draw_list->AddCircleFilled(center, radius, Fade(color, alpha), 32);
+  // A lighter cap, as the console's glossy buttons have.
+  draw_list->AddCircleFilled(ImVec2(center.x, center.y - radius * 0.28f), radius * 0.62f,
+                             Fade(IM_COL32(255, 255, 255, 46), alpha), 24);
+  const float size = diameter * 0.78f;
+  DrawText(draw_list,
+           ImVec2(center.x - TextWidth(size, letter) * 0.5f, center.y - size * 0.52f), size,
+           Fade(IM_COL32(255, 255, 255, 255), alpha), letter);
+}
+
 }  // namespace
 
 void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
-  const Canvas canvas = FitCanvas(io);
+  const Screen screen = FitScreen(io);
+  const Palette palette = theme_.blades ? BladesPalette(theme_) : kMetro;
+  const double now = ImGui::GetTime();
   const int active = static_cast<int>(tab_);
-  const int tab_count = static_cast<int>(std::size(kTabNames));
-  rex::ui::ImmediateTexture* grey = Artwork("Blade_grey.png");
-  rex::ui::ImmediateTexture* dark = Artwork("Blade_dark.png");
-  const auto draw_blade = [&](rex::ui::ImmediateTexture* texture, ImU32 fallback, ImVec2 min,
-                              ImVec2 max) {
-    if (texture) {
-      const bool is_dark = texture == dark;
-      DrawNineSlice(draw_list, texture, min, max, is_dark ? kDarkGridEdge : kGreyGridSide,
-                    is_dark ? kDarkGridEdge : kGreyGridEnd, canvas.scale);
-      return;
-    }
-    // Without the console's artwork: its colours, and a shadow down the edge.
-    draw_list->AddRectFilled(ImVec2(min.x - 3.0f, min.y + 2.0f), ImVec2(max.x + 3.0f, max.y + 4.0f),
-                             IM_COL32(0, 0, 0, 60));
-    draw_list->AddRectFilled(min, max, fallback);
-  };
 
-  // Header: "Xbox Guide" over the centre blade's left, the clock over its right,
-  // the player's tile between them.
-  const float header_size = canvas.Font(12.0f);
-  const ImVec2 header = canvas.At(kHeaderX, kHeaderY);
-  DrawText(draw_list, header, header_size, kHeaderText, "Xbox Guide");
-
-  const std::string clock = Clock();
-  if (!clock.empty()) {
-    const ImVec2 at = canvas.At(kCenterX + kCenterWidth - 12.0f, kHeaderY);
-    DrawText(draw_list, ImVec2(at.x - TextWidth(header_size, clock), at.y), header_size,
-             kHeaderText, clock);
+  // Animation bookkeeping: note when the guide opened, and when the tab or the
+  // selection last changed and from what.
+  if (opened_at_ < 0.0) {
+    opened_at_ = now;
+    drawn_tab_ = active;
+    drawn_selected_ = selected_;
+  }
+  if (drawn_tab_ != active) {
+    tab_from_ = drawn_tab_;
+    tab_changed_at_ = now;
+    drawn_tab_ = active;
+    drawn_selected_ = selected_;
+    selected_from_ = -1;
+  }
+  const int selection = page_ == Page::kExitConfirmation ? 3 + exit_choice_ : selected_;
+  if (drawn_selected_ != selection) {
+    selected_from_ = drawn_selected_;
+    selected_changed_at_ = now;
+    drawn_selected_ = selection;
   }
 
-  const ImVec2 tile_min = canvas.At(kCenterX + kCenterWidth * 0.5f - 18.0f, kCenterY - 42.0f);
-  const ImVec2 tile_max(tile_min.x + canvas.Size(36.0f), tile_min.y + canvas.Size(36.0f));
+  const float open = EaseOut((now - opened_at_) / kOpenSeconds);
+  const float tab_t = tab_from_ < 0 ? 1.0f : EaseOut((now - tab_changed_at_) / kTabSeconds);
+  const float focus_t = EaseOut((now - selected_changed_at_) / kFocusSeconds);
+
+  // The blades open out from the middle as the guide appears.
+  const auto spread = [&](float x) { return x * Lerp(0.82f, 1.0f, open); };
+  const auto target = Layout(active);
+  const auto source = tab_from_ < 0 ? target : Layout(tab_from_);
+  const auto edge = [&](int index) {
+    return std::pair{spread(Lerp(source[index].first, target[index].first, tab_t)),
+                     spread(Lerp(source[index].second, target[index].second, tab_t))};
+  };
+  const float top = kBladesTop;
+  const float bottom = kBladesBottom;
+
+  // Title, gamer picture, ring of light and clock.
+  const ImU32 chrome = Fade(palette.chrome, open);
+  const ImU32 shadow = Fade(palette.shadow, open);
+  const auto shadowed = [&](ImVec2 at, float size, const std::string& text) {
+    const float offset = std::max(1.0f, screen.Size(2.0f));
+    DrawText(draw_list, ImVec2(at.x + offset, at.y + offset), size, shadow, text);
+    DrawText(draw_list, at, size, chrome, text);
+  };
+  shadowed(screen.At(kTitleLeft, kTitleTop), screen.Size(kTitleSize), "Xbox Guide");
+
+  const ImVec2 tile_min = screen.At(kTileLeft, kTileTop);
+  const ImVec2 tile_max = screen.At(kTileLeft + kTileSize, kTileTop + kTileSize);
   if (rex::ui::ImmediateTexture* tile = FirstArtwork({"gamerpic.png", "gamertile.png"})) {
-    draw_list->AddImage(reinterpret_cast<ImTextureID>(tile), tile_min, tile_max);
+    draw_list->AddImage(reinterpret_cast<ImTextureID>(tile), tile_min, tile_max, ImVec2(0, 0),
+                        ImVec2(1, 1), Fade(IM_COL32(255, 255, 255, 255), open));
   } else {
     const std::string gamertag = REXCVAR_GET(recomp_gamertag);
     const std::string initial(1, gamertag.empty() ? 'P' : gamertag.front());
-    draw_list->AddRectFilled(tile_min, tile_max, theme_.accent);
-    const float size = canvas.Font(16.0f);
+    draw_list->AddRectFilledMultiColor(tile_min, tile_max, Fade(IM_COL32(0x3E, 0x78, 0xC4, 255), open),
+                                       Fade(IM_COL32(0x3E, 0x78, 0xC4, 255), open),
+                                       Fade(IM_COL32(0x1C, 0x3E, 0x78, 255), open),
+                                       Fade(IM_COL32(0x1C, 0x3E, 0x78, 255), open));
+    const float size = screen.Size(58.0f);
     DrawText(draw_list,
              ImVec2((tile_min.x + tile_max.x - TextWidth(size, initial)) * 0.5f,
-                    (tile_min.y + tile_max.y - size) * 0.5f),
-             size, IM_COL32(255, 255, 255, 255), initial);
+                    (tile_min.y + tile_max.y) * 0.5f - size * 0.55f),
+             size, chrome, initial);
   }
-  draw_list->AddRect(tile_min, tile_max, IM_COL32(255, 255, 255, 230), 0.0f, 0,
-                     std::max(1.0f, canvas.Size(1.5f)));
 
-  // Grey blades, outermost first so each nearer blade lies over the one past it.
-  const float tab_size = canvas.Font(11.0f);
-  for (int i = 0; i < active; ++i) {
-    const float x = kCenterX - kBladeStep * static_cast<float>(active - i);
-    draw_blade(grey, theme_.tab_fill, canvas.At(x, kCenterY),
-               canvas.At(x + kSideBladeWidth, kCenterY + kBladeHeight));
+  // The ring of light, player one's quarter lit.
+  const ImVec2 ring = screen.At(kRingX, kRingY);
+  const float ring_radius = screen.Size(kRingRadius);
+  const float ring_width = std::max(1.5f, screen.Size(4.0f));
+  draw_list->PathArcTo(ring, ring_radius, 0.0f, IM_PI * 2.0f, 40);
+  draw_list->PathStroke(Fade(IM_COL32(0x9A, 0xA0, 0xA4, 255), open), 0, ring_width);
+  draw_list->PathArcTo(ring, ring_radius, IM_PI * 1.05f, IM_PI * 1.45f, 12);
+  draw_list->PathStroke(Fade(IM_COL32(0x9C, 0xE0, 0x2C, 255), open), 0, ring_width);
+
+  const std::string clock = Clock();
+  if (!clock.empty()) {
+    const float size = screen.Size(kClockSize);
+    shadowed(ImVec2(screen.At(kClockRight, kClockTop).x - TextWidth(size, clock),
+                    screen.At(kClockRight, kClockTop).y),
+             size, clock);
   }
-  for (int i = tab_count - 1; i > active; --i) {
-    const float visible_end = kCenterX + kCenterWidth + kBladeStep * static_cast<float>(i - active);
-    draw_blade(grey, theme_.tab_fill, canvas.At(visible_end - kSideBladeWidth, kCenterY),
-               canvas.At(visible_end, kCenterY + kBladeHeight));
-  }
-  for (int i = 0; i < tab_count; ++i) {
+
+  // Blades. The pale one and the list go last so their edges lie over the
+  // slate tabs'.
+  const std::string tab_names[] = {"Games", REXCVAR_GET(recomp_gamertag), "Settings"};
+  const auto blade_rect = [&](std::pair<float, float> x) {
+    return std::pair{screen.At(x.first, top), screen.At(x.second, bottom)};
+  };
+  for (int i = 0; i < 3; ++i) {
     if (i == active) {
       continue;
     }
-    // Each name runs down the strip of its blade that shows.
-    const float strip_start = i < active
-                                  ? kCenterX - kBladeStep * static_cast<float>(active - i)
-                                  : kCenterX + kCenterWidth +
-                                        kBladeStep * static_cast<float>(i - active - 1);
-    DrawTextDown(draw_list, canvas.At(strip_start + kBladeStep * 0.5f, 0.0f).x,
-                 canvas.At(0.0f, kTabTextY).y, tab_size, kTabText, kTabNames[i]);
+    const auto [min, max] = blade_rect(edge(i));
+    draw_list->AddRectFilled(min, max, Fade(palette.slate, open));
+    draw_list->AddRectFilled(ImVec2(max.x - std::max(1.0f, screen.Size(2.0f)), min.y), max,
+                             Fade(IM_COL32(0, 0, 0, 40), open));
+    DrawTextDown(draw_list, (min.x + max.x) * 0.5f, screen.At(0.0f, kTabLabelTop).y,
+                 screen.Size(kTabLabelSize), Fade(palette.slate_text, open), tab_names[i]);
   }
 
-  // The centre blade, its focus strip and the current tab's name.
-  draw_blade(dark, theme_.panel_top, canvas.At(kCenterX, kCenterY),
-             canvas.At(kCenterX + kCenterWidth, kCenterY + kBladeHeight));
-  draw_list->AddRectFilled(canvas.At(kFocusX, kFocusY),
-                           canvas.At(kFocusX + kFocusWidth, kFocusY + kFocusHeight),
-                           IM_COL32(0, 0, 0, 14));
-  DrawTextDown(draw_list, canvas.At(kFocusX + kFocusWidth * 0.5f, 0.0f).x,
-               canvas.At(0.0f, kTabTextY - 1.0f).y, canvas.Font(12.0f), kFocusText,
-               kTabNames[active]);
+  const auto [list_min, list_max] = blade_rect(edge(3));
+  draw_list->AddRectFilledMultiColor(list_min, list_max, Fade(palette.list_top, open),
+                                     Fade(palette.list_top, open), Fade(palette.list_bottom, open),
+                                     Fade(palette.list_bottom, open));
+  {
+    const auto [min, max] = blade_rect(edge(active));
+    draw_list->AddRectFilled(min, max, Fade(palette.pale, open));
+    DrawTextDown(draw_list, (min.x + max.x) * 0.5f, screen.At(0.0f, kTabLabelTop).y,
+                 screen.Size(kActiveTabLabelSize), Fade(palette.pale_text, open),
+                 tab_names[active]);
+  }
 
-  // The tab's list, one XuiButtonGuide per row.
-  const float row_size = canvas.Font(12.0f);
-  const float padding = canvas.Size(kRowTextX);
-  const float rule = std::max(1.0f, canvas.Size(1.0f));
+  // The list. Moving to another tab slides the new list in from its side.
+  const float list_alpha = open * tab_t;
+  const float slide = tab_from_ < 0 ? 0.0f
+                                    : (1.0f - tab_t) * screen.Size(60.0f) *
+                                          (active > tab_from_ ? 1.0f : -1.0f);
+  draw_list->PushClipRect(list_min, list_max, true);
+  const float row_text = screen.Size(kRowTextSize);
   const auto row_rect = [&](int index) {
-    const float y = kListY + kRowHeight * static_cast<float>(index);
-    return std::pair{canvas.At(kListX, y), canvas.At(kListX + kListWidth, y + kRowHeight)};
+    const float y = kRowsTop + kRowHeight * static_cast<float>(index);
+    return std::pair{ImVec2(list_min.x, screen.At(0.0f, y).y),
+                     ImVec2(list_max.x, screen.At(0.0f, y + kRowHeight).y)};
   };
-  const auto draw_row = [&](int index, const std::string& label, const std::string& value,
-                            bool selected) {
+  const auto draw_row = [&](int index, const std::string& label, const std::string& value) {
     const auto [min, max] = row_rect(index);
-    draw_list->AddRectFilled(ImVec2(min.x, min.y - rule), ImVec2(max.x, min.y), kRowRule);
-    draw_list->AddRectFilled(ImVec2(min.x, max.y - rule), max, kRowRule);
-    if (selected) {
-      draw_list->AddRectFilled(ImVec2(min.x, min.y - rule), max, kRowFocus);
+    float highlight = 0.0f;
+    if (index == drawn_selected_) {
+      highlight = focus_t;
+    } else if (index == selected_from_) {
+      highlight = 1.0f - focus_t;
     }
-    // Centred in the label's 22-high box, 2 below the row's top.
-    const float text_y = min.y + canvas.Size(kRowTextY) +
-                         (canvas.Size(kRowTextHeight) - row_size) * 0.5f;
-    const float shadow = std::max(1.0f, canvas.Size(0.75f));
-    if (!selected) {
-      DrawText(draw_list, ImVec2(min.x + padding + shadow, text_y + shadow), row_size,
-               kRowTextShadow, label);
+    draw_list->AddRectFilled(ImVec2(min.x, max.y - std::max(1.0f, screen.Size(kRowRule))),
+                             max, Fade(palette.rule, list_alpha));
+    if (highlight > 0.0f) {
+      draw_list->AddRectFilledMultiColor(min, max, Fade(palette.focus_top, highlight * open),
+                                         Fade(palette.focus_top, highlight * open),
+                                         Fade(palette.focus_bottom, highlight * open),
+                                         Fade(palette.focus_bottom, highlight * open));
     }
-    DrawText(draw_list, ImVec2(min.x + padding, text_y), row_size,
-             selected ? kRowFocusText : kRowText, label);
+    const float text_y = (min.y + max.y - row_text) * 0.5f - screen.Size(3.0f);
+    const ImU32 text = highlight >= 0.5f ? palette.focus_text : palette.text;
+    DrawText(draw_list, ImVec2(min.x + screen.Size(kRowTextInset) + slide, text_y), row_text,
+             Fade(text, list_alpha), label);
     if (!value.empty()) {
-      const float right = min.x + canvas.Size(kRowValueRight);
-      DrawText(draw_list, ImVec2(right - TextWidth(row_size, value), text_y), row_size,
-               selected ? kRowFocusText : kRowValueText, value);
+      DrawText(draw_list,
+               ImVec2(max.x - screen.Size(kRowValueInset) - TextWidth(row_text, value) + slide,
+                      text_y),
+               row_text, Fade(highlight >= 0.5f ? palette.focus_text : palette.value, list_alpha),
+               value);
     }
   };
 
   if (page_ == Page::kExitConfirmation) {
     const auto [min, max] = row_rect(0);
-    DrawText(draw_list, ImVec2(min.x + padding, (min.y + max.y - row_size) * 0.5f), row_size,
-             theme_.text, "Leave " + actions_.game_display_name + "?");
-    const auto [note_min, note_max] = row_rect(1);
     DrawText(draw_list,
-             ImVec2(note_min.x + padding, (note_min.y + note_max.y - canvas.Font(11.0f)) * 0.5f),
-             canvas.Font(11.0f), theme_.text_dim, "Unsaved progress will be lost.");
-    draw_row(3, "Leave Game", "", exit_choice_ == 0);
-    draw_row(4, "Cancel", "", exit_choice_ == 1);
+             ImVec2(min.x + screen.Size(kRowTextInset), (min.y + max.y - row_text) * 0.5f),
+             row_text, Fade(palette.text, open), "Leave " + actions_.game_display_name + "?");
+    const auto [note_min, note_max] = row_rect(1);
+    const float note = screen.Size(36.0f);
+    DrawText(draw_list,
+             ImVec2(note_min.x + screen.Size(kRowTextInset), (note_min.y + note_max.y - note) * 0.5f),
+             note, Fade(palette.value, open), "Unsaved progress will be lost.");
+    draw_row(3, "Leave Game", "");
+    draw_row(4, "Cancel", "");
   } else {
     for (size_t i = 0; i < entries_.size(); ++i) {
-      draw_row(static_cast<int>(i), entries_[i].label, entries_[i].value,
-               static_cast<int>(i) == selected_);
+      draw_row(static_cast<int>(i), entries_[i].label, entries_[i].value);
     }
   }
+  draw_list->PopClipRect();
 
-  // The legend sits on the game under the blades.
+  // The legend.
   struct Hint {
     const char* letter;
-    ImU32 fallback;
+    ImU32 color;
     const char* label;
   };
-  std::vector<Hint> hints = {{"A", theme_.accent, "Select"},
-                             {"B", theme_.button_b,
-                              page_ == Page::kRoot ? "Close" : "Back"}};
+  std::vector<Hint> hints = {{"A", IM_COL32(0x4C, 0xB0, 0x2A, 255), "Select"},
+                             {"B", IM_COL32(0xD8, 0x2C, 0x2C, 255), "Back"}};
   if (page_ == Page::kRoot && actions_.exit_game) {
-    hints.push_back({"Y", IM_COL32(222, 178, 20, 255), "Leave Game"});
+    hints.push_back({"Y", IM_COL32(0xF0, 0xB0, 0x1C, 255), "Leave Game"});
   }
-  const float hint_size = canvas.Font(12.0f);
-  const float glyph = canvas.Size(14.0f);
-  const float gap = canvas.Size(14.0f);
-  float total = 0.0f;
+  const float legend_text = screen.Size(kLegendTextSize);
+  const float glyph = screen.Size(kLegendGlyph);
+  float x = screen.At(kLegendLeft, 0.0f).x;
+  const float y = screen.At(0.0f, kLegendY).y;
   for (const Hint& hint : hints) {
-    total += glyph + canvas.Size(4.0f) + TextWidth(hint_size, hint.label) + gap;
-  }
-  const ImVec2 legend = canvas.At(kCenterX + kCenterWidth * 0.5f, kCenterY + kBladeHeight + 18.0f);
-  float x = legend.x - (total - gap) * 0.5f;
-  for (const Hint& hint : hints) {
-    const ImVec2 center(x + glyph * 0.5f, legend.y);
-    if (rex::ui::ImmediateTexture* texture = Artwork(std::string(hint.letter) + "-Button.png")) {
-      draw_list->AddImage(reinterpret_cast<ImTextureID>(texture),
-                          ImVec2(center.x - glyph * 0.5f, center.y - glyph * 0.5f),
-                          ImVec2(center.x + glyph * 0.5f, center.y + glyph * 0.5f));
-    } else {
-      draw_list->AddCircleFilled(center, glyph * 0.5f, hint.fallback, 24);
-      const float letter_size = hint_size * 0.8f;
-      DrawText(draw_list,
-               ImVec2(center.x - TextWidth(letter_size, hint.letter) * 0.5f,
-                      center.y - letter_size * 0.5f),
-               letter_size, IM_COL32(255, 255, 255, 255), hint.letter);
-    }
-    const ImVec2 text(x + glyph + canvas.Size(4.0f), legend.y - hint_size * 0.5f);
-    DrawText(draw_list, ImVec2(text.x + 1.0f, text.y + 1.0f), hint_size, theme_.chrome_shadow,
-             hint.label);
-    DrawText(draw_list, text, hint_size, theme_.chrome_text, hint.label);
-    x = text.x + TextWidth(hint_size, hint.label) + gap;
+    DrawGlyph(draw_list, ImVec2(x + glyph * 0.5f, y), glyph, hint.color, hint.letter, open);
+    const ImVec2 text(x + glyph + screen.Size(kLegendGlyphGap), y - legend_text * 0.55f);
+    shadowed(text, legend_text, hint.label);
+    x = text.x + TextWidth(legend_text, hint.label) + screen.Size(kLegendItemGap);
   }
 }
 
