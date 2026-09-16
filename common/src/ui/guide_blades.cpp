@@ -46,12 +46,35 @@ constexpr float kSideBladeWidth = 72.0f;
 constexpr float kTabTextY = 146.0f;
 const ImU32 kTabText = IM_COL32(0xEB, 0xEB, 0xEB, 0xFF);
 const ImU32 kFocusText = IM_COL32(0x58, 0x60, 0x66, 0xFF);
-// The "Xbox Guide" label above the blades.
+// The "Xbox Guide" label above the blades: Label_Head, 12 point white at 92%.
 constexpr float kHeaderX = 243.0f;
 constexpr float kHeaderY = 103.0f;
+const ImU32 kHeaderText = IM_COL32(0xFF, 0xFF, 0xFF, 0xEB);
 
-// XUI point sizes against ImGui pixels on this canvas.
-constexpr float kPointToCanvas = 1.15f;
+// huduiskin.xex's skin scene, for the pieces GuideMain names by visual.
+//
+// XuiButtonGuide, one row: a 1-high #D2D5D9 rule above and below; text 12
+// point at (10, 2), #333A40 with a #EBEBEB shadow at 59%; focused, a #008A00
+// highlight from 1 above the row to its bottom and the text turns #EBEBEB.
+const ImU32 kRowRule = IM_COL32(0xD2, 0xD5, 0xD9, 0xFF);
+const ImU32 kRowText = IM_COL32(0x33, 0x3A, 0x40, 0xFF);
+const ImU32 kRowTextShadow = IM_COL32(0xEB, 0xEB, 0xEB, 0x96);
+const ImU32 kRowFocus = IM_COL32(0x00, 0x8A, 0x00, 0xFF);
+const ImU32 kRowFocusText = IM_COL32(0xEB, 0xEB, 0xEB, 0xFF);
+const ImU32 kRowValueText = IM_COL32(0x65, 0x6D, 0x72, 0xFF);
+constexpr float kRowTextX = 10.0f;
+constexpr float kRowTextY = 2.0f;
+constexpr float kRowTextHeight = 22.0f;
+// btn_Count_achiev puts the count in a second label ending 283 across.
+constexpr float kRowValueRight = 283.0f;
+// HUD_Bladedark and HUD_Bladegrey are nine-grids over the blade textures,
+// with these corners in texture pixels and canvas units alike.
+constexpr float kDarkGridEdge = 25.0f;
+constexpr float kGreyGridSide = 30.0f;
+constexpr float kGreyGridEnd = 25.0f;
+
+// XUI point sizes are points: 4/3 of a canvas unit.
+constexpr float kPointToCanvas = 4.0f / 3.0f;
 
 const char* const kTabNames[] = {"Games & Apps", "Home", "Settings"};
 
@@ -95,16 +118,17 @@ void DrawTextDown(ImDrawList* draw_list, float center_x, float top, float size, 
   }
 }
 
-// The blade textures are 100 by 250 with soft shadowed edges, stretched to
-// whatever blade they dress. Stretching them whole would smear the edges, so
-// they're drawn as nine pieces with fixed corners.
+// A XuiNineGrid: the texture's corners stay their size and its middle
+// stretches, so a 100 by 250 blade dresses a blade of any size.
 void DrawNineSlice(ImDrawList* draw_list, rex::ui::ImmediateTexture* texture, ImVec2 min,
-                   ImVec2 max, float edge) {
+                   ImVec2 max, float side, float end, float scale) {
   const auto id = reinterpret_cast<ImTextureID>(texture);
-  const float u = 12.0f / static_cast<float>(texture->width);
-  const float v = 12.0f / static_cast<float>(texture->height);
-  const float xs[] = {min.x, min.x + edge, max.x - edge, max.x};
-  const float ys[] = {min.y, min.y + edge, max.y - edge, max.y};
+  const float u = side / static_cast<float>(texture->width);
+  const float v = end / static_cast<float>(texture->height);
+  const float dx = std::min(side * scale, (max.x - min.x) * 0.5f);
+  const float dy = std::min(end * scale, (max.y - min.y) * 0.5f);
+  const float xs[] = {min.x, min.x + dx, max.x - dx, max.x};
+  const float ys[] = {min.y, min.y + dy, max.y - dy, max.y};
   const float us[] = {0.0f, u, 1.0f - u, 1.0f};
   const float vs[] = {0.0f, v, 1.0f - v, 1.0f};
   for (int row = 0; row < 3; ++row) {
@@ -139,12 +163,12 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
   const int tab_count = static_cast<int>(std::size(kTabNames));
   rex::ui::ImmediateTexture* grey = Artwork("Blade_grey.png");
   rex::ui::ImmediateTexture* dark = Artwork("Blade_dark.png");
-  const float edge = canvas.Size(6.0f);
-
   const auto draw_blade = [&](rex::ui::ImmediateTexture* texture, ImU32 fallback, ImVec2 min,
                               ImVec2 max) {
     if (texture) {
-      DrawNineSlice(draw_list, texture, min, max, edge);
+      const bool is_dark = texture == dark;
+      DrawNineSlice(draw_list, texture, min, max, is_dark ? kDarkGridEdge : kGreyGridSide,
+                    is_dark ? kDarkGridEdge : kGreyGridEnd, canvas.scale);
       return;
     }
     // Without the console's artwork: its colours, and a shadow down the edge.
@@ -155,19 +179,15 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
 
   // Header: "Xbox Guide" over the centre blade's left, the clock over its right,
   // the player's tile between them.
-  const float header_size = canvas.Font(15.0f);
+  const float header_size = canvas.Font(12.0f);
   const ImVec2 header = canvas.At(kHeaderX, kHeaderY);
-  DrawText(draw_list, ImVec2(header.x + 1.5f, header.y + 1.5f), header_size, theme_.chrome_shadow,
-           "Xbox Guide");
-  DrawText(draw_list, header, header_size, theme_.chrome_text, "Xbox Guide");
+  DrawText(draw_list, header, header_size, kHeaderText, "Xbox Guide");
 
   const std::string clock = Clock();
   if (!clock.empty()) {
     const ImVec2 at = canvas.At(kCenterX + kCenterWidth - 12.0f, kHeaderY);
-    const float width = TextWidth(header_size, clock);
-    DrawText(draw_list, ImVec2(at.x - width + 1.5f, at.y + 1.5f), header_size, theme_.chrome_shadow,
-             clock);
-    DrawText(draw_list, ImVec2(at.x - width, at.y), header_size, theme_.chrome_text, clock);
+    DrawText(draw_list, ImVec2(at.x - TextWidth(header_size, clock), at.y), header_size,
+             kHeaderText, clock);
   }
 
   const ImVec2 tile_min = canvas.At(kCenterX + kCenterWidth * 0.5f - 18.0f, kCenterY - 42.0f);
@@ -222,9 +242,10 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
                canvas.At(0.0f, kTabTextY - 1.0f).y, canvas.Font(12.0f), kFocusText,
                kTabNames[active]);
 
-  // The tab's list.
-  const float row_size = canvas.Font(13.0f);
-  const float padding = canvas.Size(10.0f);
+  // The tab's list, one XuiButtonGuide per row.
+  const float row_size = canvas.Font(12.0f);
+  const float padding = canvas.Size(kRowTextX);
+  const float rule = std::max(1.0f, canvas.Size(1.0f));
   const auto row_rect = [&](int index) {
     const float y = kListY + kRowHeight * static_cast<float>(index);
     return std::pair{canvas.At(kListX, y), canvas.At(kListX + kListWidth, y + kRowHeight)};
@@ -232,18 +253,25 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
   const auto draw_row = [&](int index, const std::string& label, const std::string& value,
                             bool selected) {
     const auto [min, max] = row_rect(index);
+    draw_list->AddRectFilled(ImVec2(min.x, min.y - rule), ImVec2(max.x, min.y), kRowRule);
+    draw_list->AddRectFilled(ImVec2(min.x, max.y - rule), max, kRowRule);
     if (selected) {
-      draw_list->AddRectFilled(min, max, theme_.selection);
-    } else if (index > 0) {
-      draw_list->AddLine(ImVec2(min.x + padding, min.y), ImVec2(max.x - padding, min.y),
-                         theme_.separator);
+      draw_list->AddRectFilled(ImVec2(min.x, min.y - rule), max, kRowFocus);
     }
-    const ImU32 color = selected ? theme_.text_selected : theme_.text;
-    const float text_y = (min.y + max.y - row_size) * 0.5f;
-    DrawText(draw_list, ImVec2(min.x + padding, text_y), row_size, color, label);
+    // Centred in the label's 22-high box, 2 below the row's top.
+    const float text_y = min.y + canvas.Size(kRowTextY) +
+                         (canvas.Size(kRowTextHeight) - row_size) * 0.5f;
+    const float shadow = std::max(1.0f, canvas.Size(0.75f));
+    if (!selected) {
+      DrawText(draw_list, ImVec2(min.x + padding + shadow, text_y + shadow), row_size,
+               kRowTextShadow, label);
+    }
+    DrawText(draw_list, ImVec2(min.x + padding, text_y), row_size,
+             selected ? kRowFocusText : kRowText, label);
     if (!value.empty()) {
-      DrawText(draw_list, ImVec2(max.x - padding - TextWidth(row_size, value), text_y), row_size,
-               selected ? theme_.text_selected : theme_.text_dim, value);
+      const float right = min.x + canvas.Size(kRowValueRight);
+      DrawText(draw_list, ImVec2(right - TextWidth(row_size, value), text_y), row_size,
+               selected ? kRowFocusText : kRowValueText, value);
     }
   };
 
