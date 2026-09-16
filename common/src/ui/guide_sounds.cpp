@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <initializer_list>
+#include <span>
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
@@ -22,23 +22,31 @@ namespace recomp {
 namespace {
 
 // The files each cue plays, first found wins: the guide's own sounds from
-// hud.xex and xam.xex's xam package, then the shared ones from shrdres.
-std::initializer_list<const char*> Files(GuideSounds::Cue cue) {
+// hud.xex and xam.xex's xam package, then the shared ones from shrdres. Static,
+// so the lists outlive the call that hands them out.
+std::span<const char* const> Files(GuideSounds::Cue cue) {
+  static constexpr const char* kOpen[] = {"HUD_open.xma", "BladeOpen.xma"};
+  static constexpr const char* kClose[] = {"HUD_close.xma", "btn_Back.xma"};
+  static constexpr const char* kFocus[] = {"btn_Focus.xma"};
+  static constexpr const char* kSelect[] = {"btn_selectG.xma", "btn_Select.xma"};
+  static constexpr const char* kBack[] = {"btn_backG.xma", "btn_Back.xma"};
+  static constexpr const char* kTabSwitch[] = {"tab_Switch.xma"};
+  static constexpr const char* kNotification[] = {"NotifyPopup.xma"};
   switch (cue) {
     case GuideSounds::Cue::kOpen:
-      return {"HUD_open.xma", "BladeOpen.xma"};
+      return kOpen;
     case GuideSounds::Cue::kClose:
-      return {"HUD_close.xma", "btn_Back.xma"};
+      return kClose;
     case GuideSounds::Cue::kFocus:
-      return {"btn_Focus.xma"};
+      return kFocus;
     case GuideSounds::Cue::kSelect:
-      return {"btn_selectG.xma", "btn_Select.xma"};
+      return kSelect;
     case GuideSounds::Cue::kBack:
-      return {"btn_backG.xma", "btn_Back.xma"};
+      return kBack;
     case GuideSounds::Cue::kTabSwitch:
-      return {"tab_Switch.xma"};
+      return kTabSwitch;
     case GuideSounds::Cue::kNotification:
-      return {"NotifyPopup.xma"};
+      return kNotification;
   }
   return {};
 }
