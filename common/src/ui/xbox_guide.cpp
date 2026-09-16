@@ -62,10 +62,8 @@ void XboxGuide::Open() {
   menu_ = new GuideDialog(
       drawer_, GuideActions{
                    .game_display_name = actions_.game_display_name,
-                   .has_achievements = actions_.has_achievements,
                    .open_settings = [this] { actions_.open_settings(""); },
                    .open_controls = [this] { actions_.open_settings("controls"); },
-                   .open_achievements = actions_.open_achievements,
                    .exit_game = actions_.exit_game,
                    .on_closed =
                        [this] {
@@ -75,6 +73,8 @@ void XboxGuide::Open() {
                            system_ui_active_ = false;
                          }
                        },
+                   .achievements = actions_.achievements,
+                   .runtime = actions_.runtime,
                });
   // Tell the title system UI is up, as a console does while the Guide shows.
   rex::kernel::xam::SetSystemUiActive(true);
@@ -96,14 +96,13 @@ void XboxGuide::Toggle() {
 }
 
 void XboxGuide::Show(SystemUi ui) {
-  if (ui == SystemUi::kAchievements && actions_.has_achievements &&
-      actions_.open_achievements) {
-    actions_.open_achievements();
-    return;
-  }
   REXLOG_INFO("Guide: showing the guide for the {} screen",
               rex::kernel::xam::SystemUiName(ui));
   Open();
+  if (ui == SystemUi::kAchievements && menu_) {
+    // The only screen the guide has of its own beyond the root one.
+    menu_->ShowAchievements();
+  }
 }
 
 }  // namespace recomp

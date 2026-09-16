@@ -5,9 +5,15 @@
 
 #include <rex/kernel/xam/system_ui.h>
 
-namespace rex::ui {
+namespace rex {
+class Runtime;
+namespace system {
+class AchievementManager;
+}  // namespace system
+namespace ui {
 class ImGuiDrawer;
-}
+}  // namespace ui
+}  // namespace rex
 
 namespace recomp {
 
@@ -32,12 +38,14 @@ class XboxGuide {
  public:
   struct Actions {
     std::string game_display_name;
-    bool has_achievements = false;
     // Opens the settings screen at a section ("video", "controls") or the first
     // one when empty.
     std::function<void(std::string)> open_settings;
-    std::function<void()> open_achievements;
     std::function<void()> exit_game;
+    // The title's achievements, which the guide shows on its own screen.
+    rex::system::AchievementManager* achievements = nullptr;
+    // For achievement icons that live in the title's XDBF.
+    rex::Runtime* runtime = nullptr;
     // Runs a callback on the UI thread: a game can ask for the guide from any
     // of its threads.
     std::function<void(std::function<void()>)> on_ui_thread;

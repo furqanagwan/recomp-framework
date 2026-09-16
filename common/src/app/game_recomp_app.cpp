@@ -118,9 +118,7 @@ void GameRecompApp::OnPostSetup() {
   guide_.Install(imgui_drawer(),
                  XboxGuide::Actions{
                      .game_display_name = descriptor_.display_name,
-                     .has_achievements = !achievements().ListAchievements().empty(),
                      .open_settings = [this](std::string section) { OpenSettings(std::move(section)); },
-                     .open_achievements = [] { rex::ui::InvokeBind("bind_achievements"); },
                      .exit_game =
                          [this] {
                            if (auto* game_window = window()) {
@@ -131,6 +129,8 @@ void GameRecompApp::OnPostSetup() {
                          [this](std::function<void()> work) {
                            app_context().CallInUIThreadDeferred(std::move(work));
                          },
+                     .achievements = &achievements(),
+                     .runtime = runtime(),
                  });
   menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
                       &app_context(), [this] { guide_.Open(); });

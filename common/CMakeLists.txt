@@ -30,6 +30,8 @@ add_library(recomp_common STATIC
     src/ui/monochrome_theme.cpp
     src/ui/settings_dialog.cpp
     src/ui/guide_dialog.cpp
+    src/ui/guide_resources.cpp
+    src/ui/guide_theme.cpp
     src/ui/xbox_guide.cpp
 )
 
