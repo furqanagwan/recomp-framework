@@ -1,5 +1,8 @@
 #include "recomp/app/game_recomp_app.h"
 
+#include <chrono>
+#include <thread>
+
 #include <rex/cvar.h>
 #include <rex/input/device_assignment.h>
 #include <rex/input/input_system.h>
