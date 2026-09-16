@@ -81,7 +81,7 @@ void GuideResources::LoadIfNeeded() {
     }
   }
   if (!std::filesystem::exists(path, ec)) {
-    REXLOG_WARNING("Guide: no artwork at {}; drawing its own shapes", path.string());
+    REXLOG_WARN("Guide: no artwork at {}; drawing its own shapes", path.string());
     return;
   }
 
@@ -122,12 +122,12 @@ void GuideResources::LoadFolder(const std::filesystem::path& path) {
 void GuideResources::LoadPackage(const std::filesystem::path& path) {
   const std::vector<uint8_t> data = ReadFile(path);
   if (data.size() < 0x1E || std::memcmp(data.data(), "XUIZ", 4) != 0) {
-    REXLOG_WARNING("Guide: {} is not an XUI package", path.string());
+    REXLOG_WARN("Guide: {} is not an XUI package", path.string());
     return;
   }
   const uint32_t version = ReadBE32(data, 4);
   if (version != 1 && version != 3) {
-    REXLOG_WARNING("Guide: {} is an XUI package of version {}, which this does not read",
+    REXLOG_WARN("Guide: {} is an XUI package of version {}, which this does not read",
                    path.string(), version);
     return;
   }
@@ -209,7 +209,7 @@ rex::ui::ImmediateTexture* GuideResources::Get(const std::string& name) {
     texture = drawer_->CreateTexture(static_cast<uint32_t>(width), static_cast<uint32_t>(height),
                                      rex::ui::ImmediateTextureFilter::kLinear, false, rgba.data());
   } else {
-    REXLOG_WARNING("Guide: {} is not an image this can decode", key);
+    REXLOG_WARN("Guide: {} is not an image this can decode", key);
   }
   rex::ui::ImmediateTexture* raw = texture.get();
   textures_.emplace(key, std::move(texture));
