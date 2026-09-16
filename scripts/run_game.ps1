@@ -50,6 +50,7 @@ public static class RecompRunWindow {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
 }
 "@
 }
@@ -65,11 +66,20 @@ function Save-WindowScreenshot([System.Diagnostics.Process]$process, [string]$pa
     $width = $rect.Right - $rect.Left
     $height = $rect.Bottom - $rect.Top
     if ($width -le 0 -or $height -le 0) { return $false }
+
     $bitmap = New-Object System.Drawing.Bitmap $width, $height
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $scaled = $null
     try {
-        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+        # PW_RENDERFULLCONTENT: asks the window to draw itself, so a game behind
+        # other windows is still captured. Copying the screen instead would
+        # capture whatever is in front of it.
+        $dc = $graphics.GetHdc()
+        $printed = [RecompRunWindow]::PrintWindow($process.MainWindowHandle, $dc, 2)
+        $graphics.ReleaseHdc($dc)
+        if (-not $printed) {
+            $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+        }
         # Keep reports small: 1280 pixels wide is enough to judge a frame.
         $image = $bitmap
         if ($width -gt 1280) {
