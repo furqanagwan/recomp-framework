@@ -31,6 +31,7 @@ add_library(recomp_common STATIC
     src/ui/settings_dialog.cpp
     src/ui/guide_dialog.cpp
     src/ui/guide_blades.cpp
+    src/ui/achievement_popup.cpp
     src/ui/guide_settings.cpp
     src/ui/guide_resources.cpp
     src/ui/guide_sounds.cpp

@@ -30,6 +30,9 @@ class GameRecompApp : public rex::ReXApp {
   void OnPostLoadXexImage() override;
   void OnPostSetup() override;
   void OnShutdown() override;
+  // The console's own "Achievement unlocked" in place of the runtime's toast.
+  std::unique_ptr<rex::ui::AchievementNotificationDialog> CreateAchievementNotificationDialog()
+      override;
 
   const GameDescriptor& descriptor() const { return descriptor_; }
 

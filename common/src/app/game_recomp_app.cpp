@@ -20,9 +20,16 @@
 #include "recomp/ui/monochrome_theme.h"
 #include "recomp/ui/settings_dialog.h"
 #include "recomp/ui/xbox_guide.h"
+#include "recomp/ui/achievement_popup.h"
 #include "recomp/ui/guide_fonts.h"
 
 REXCVAR_DECLARE(bool, recomp_shared_controllers);
+
+REXCVAR_DEFINE_DOUBLE(recomp_achievement_popup_after_seconds, 0.0, "Recomp",
+                      "Show the title's first achievement notification this many seconds after "
+                      "the game starts, without unlocking it. For trying the popup and for "
+                      "screenshots in scripted runs. 0 disables it.")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace recomp {
 
@@ -148,6 +155,28 @@ void GameRecompApp::OnPostSetup() {
                  });
   menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
                       &app_context(), [this] { guide_.Open("View + Menu"); });
+}
+
+std::unique_ptr<rex::ui::AchievementNotificationDialog>
+GameRecompApp::CreateAchievementNotificationDialog() {
+  if (!imgui_drawer() || !runtime()) {
+    return nullptr;
+  }
+  auto popup = std::make_unique<AchievementPopup>(imgui_drawer(), runtime());
+
+  const double seconds = REXCVAR_GET(recomp_achievement_popup_after_seconds);
+  if (seconds > 0.0) {
+    std::thread([this, seconds] {
+      std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
+      const auto list = achievements().ListAchievements();
+      if (!list.empty()) {
+        REXLOG_INFO("Achievements: showing {} (recomp_achievement_popup_after_seconds)",
+                    list.front().label);
+        achievements().ShowAchievementNotification(list.front().id);
+      }
+    }).detach();
+  }
+  return popup;
 }
 
 void GameRecompApp::OnShutdown() {
