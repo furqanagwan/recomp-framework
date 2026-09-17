@@ -14,6 +14,7 @@
 #include "recomp/ui/guide_resources.h"
 #include "recomp/ui/guide_sounds.h"
 #include "guide_scene.h"
+#include "held_key_mask.h"
 #include "guide_theme.h"
 
 namespace recomp {
@@ -99,21 +100,40 @@ constexpr float kLegendGlyph = 20.0f;
 constexpr float kLegendTextSize = 20.0f;
 constexpr float kLegendGlyphGap = 7.0f;
 constexpr float kLegendItemGap = 16.0f;
-constexpr double kOpenSeconds = 0.22;
 
 constexpr ImGuiKey kWatchedKeys[] = {
-    ImGuiKey_Enter,           ImGuiKey_KeypadEnter,       ImGuiKey_Escape,
-    ImGuiKey_Backspace,       ImGuiKey_Delete,            ImGuiKey_LeftArrow,
-    ImGuiKey_RightArrow,      ImGuiKey_Home,              ImGuiKey_End,
-    ImGuiKey_GamepadFaceDown, ImGuiKey_GamepadFaceRight,  ImGuiKey_GamepadFaceLeft,
-    ImGuiKey_GamepadFaceUp,   ImGuiKey_GamepadDpadUp,     ImGuiKey_GamepadDpadDown,
-    ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadDpadRight,  ImGuiKey_GamepadLStickUp,
-    ImGuiKey_GamepadLStickDown, ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight,
-    ImGuiKey_GamepadL1,       ImGuiKey_GamepadR1,         ImGuiKey_GamepadL2,
-    ImGuiKey_GamepadR2,       ImGuiKey_GamepadL3,         ImGuiKey_GamepadStart,
+    ImGuiKey_Enter,
+    ImGuiKey_KeypadEnter,
+    ImGuiKey_Escape,
+    ImGuiKey_Backspace,
+    ImGuiKey_Delete,
+    ImGuiKey_LeftArrow,
+    ImGuiKey_RightArrow,
+    ImGuiKey_Home,
+    ImGuiKey_End,
+    ImGuiKey_GamepadFaceDown,
+    ImGuiKey_GamepadFaceRight,
+    ImGuiKey_GamepadFaceLeft,
+    ImGuiKey_GamepadFaceUp,
+    ImGuiKey_GamepadDpadUp,
+    ImGuiKey_GamepadDpadDown,
+    ImGuiKey_GamepadDpadLeft,
+    ImGuiKey_GamepadDpadRight,
+    ImGuiKey_GamepadLStickUp,
+    ImGuiKey_GamepadLStickDown,
+    ImGuiKey_GamepadLStickLeft,
+    ImGuiKey_GamepadLStickRight,
+    ImGuiKey_GamepadL1,
+    ImGuiKey_GamepadR1,
+    ImGuiKey_GamepadL2,
+    ImGuiKey_GamepadR2,
+    ImGuiKey_GamepadL3,
+    ImGuiKey_GamepadStart,
 };
 
-std::string Utf8(const std::u16string& text) { return rex::string::to_utf8(text); }
+std::string Utf8(const std::u16string& text) {
+  return rex::string::to_utf8(text);
+}
 
 ImU32 Mix(ImU32 from, ImU32 to, float t) {
   const auto channel = [&](int shift) {
@@ -223,6 +243,7 @@ VirtualKeyboardDialog::VirtualKeyboardDialog(rex::ui::ImGuiDrawer* drawer,
     title_ = description_;
     description_.clear();
   }
+  held_keys_ = std::make_unique<HeldKeyMask>();
   if (drawer) {
     resources_ = std::make_unique<GuideResources>(drawer->immediate_drawer());
     resources_->LoadIfNeeded();
@@ -239,41 +260,18 @@ void VirtualKeyboardDialog::Finish(std::optional<std::u16string> text) {
   }
   finished_ = true;
   result_ = std::move(text);
-  Close();
+  // The title hears back once the keyboard has faded away.
+  finished_at_ = ImGui::GetTime();
+  GuideSounds::Get().Play(result_ ? GuideSounds::Cue::kClose : GuideSounds::Cue::kBack);
 }
 
 void VirtualKeyboardDialog::OnClose() {
-  GuideSounds::Get().Play(result_ ? GuideSounds::Cue::kClose : GuideSounds::Cue::kBack);
   GuestInputGate::OnMenuHidden();
   if (done_) {
     auto done = std::move(done_);
     done_ = nullptr;
     done(std::move(result_));
   }
-}
-
-void VirtualKeyboardDialog::ArmInput() {
-  masked_keys_.clear();
-  for (ImGuiKey key : kWatchedKeys) {
-    if (ImGui::IsKeyDown(key)) {
-      masked_keys_.push_back(key);
-    }
-  }
-}
-
-bool VirtualKeyboardDialog::Pressed(std::initializer_list<ImGuiKey> keys, bool repeat) {
-  bool pressed = false;
-  for (ImGuiKey key : keys) {
-    auto masked = std::find(masked_keys_.begin(), masked_keys_.end(), key);
-    if (masked != masked_keys_.end()) {
-      if (ImGui::IsKeyDown(key)) {
-        continue;
-      }
-      masked_keys_.erase(masked);
-    }
-    pressed = ImGui::IsKeyPressed(key, repeat) || pressed;
-  }
-  return pressed;
 }
 
 void VirtualKeyboardDialog::OnDraw(ImGuiIO& io) {
@@ -298,11 +296,19 @@ void VirtualKeyboardDialog::OnDraw(ImGuiIO& io) {
   ime.InputPos = caret_position_;
   ime.InputLineHeight = caret_height_;
 
+  if (finished_) {
+    io.InputQueueCharacters.resize(0);
+    if (ImGui::GetTime() - finished_at_ >= kTransFromSeconds) {
+      Close();
+    }
+    return;
+  }
+
   // As in the guide: whatever is held when the keyboard opens (the A that chose
   // the name field) waits to be released before it counts.
   if (frames_drawn_ < 2) {
     if (++frames_drawn_ == 2) {
-      ArmInput();
+      held_keys_->Arm(kWatchedKeys);
     }
     io.InputQueueCharacters.resize(0);
     return;
@@ -340,13 +346,13 @@ void VirtualKeyboardDialog::HandleInput(ImGuiIO& io) {
     typing = ImGui::IsKeyDown(static_cast<ImGuiKey>(key));
   }
 
-  if (Pressed({ImGuiKey_Enter, ImGuiKey_KeypadEnter}, false) ||
-      (!typing && Pressed({ImGuiKey_GamepadStart}, false))) {
+  if (held_keys_->Pressed({ImGuiKey_Enter, ImGuiKey_KeypadEnter}, false) ||
+      (!typing && held_keys_->Pressed({ImGuiKey_GamepadStart}, false))) {
     Finish(keyboard_.text());
     return;
   }
-  if (Pressed({ImGuiKey_Escape}, false) ||
-      (!typing && Pressed({ImGuiKey_GamepadFaceRight}, false))) {
+  if (held_keys_->Pressed({ImGuiKey_Escape}, false) ||
+      (!typing && held_keys_->Pressed({ImGuiKey_GamepadFaceRight}, false))) {
     Finish(std::nullopt);
     return;
   }
@@ -357,12 +363,18 @@ void VirtualKeyboardDialog::HandleInput(ImGuiIO& io) {
     }
   }
   io.InputQueueCharacters.resize(0);
-  if (Pressed({ImGuiKey_Backspace}, true)) keyboard_.Backspace();
-  if (Pressed({ImGuiKey_Delete}, true)) keyboard_.Delete();
-  if (Pressed({ImGuiKey_LeftArrow}, true)) keyboard_.MoveCursor(-1);
-  if (Pressed({ImGuiKey_RightArrow}, true)) keyboard_.MoveCursor(1);
-  if (Pressed({ImGuiKey_Home}, false)) keyboard_.MoveCursorToEnd(false);
-  if (Pressed({ImGuiKey_End}, false)) keyboard_.MoveCursorToEnd(true);
+  if (held_keys_->Pressed({ImGuiKey_Backspace}, true))
+    keyboard_.Backspace();
+  if (held_keys_->Pressed({ImGuiKey_Delete}, true))
+    keyboard_.Delete();
+  if (held_keys_->Pressed({ImGuiKey_LeftArrow}, true))
+    keyboard_.MoveCursor(-1);
+  if (held_keys_->Pressed({ImGuiKey_RightArrow}, true))
+    keyboard_.MoveCursor(1);
+  if (held_keys_->Pressed({ImGuiKey_Home}, false))
+    keyboard_.MoveCursorToEnd(false);
+  if (held_keys_->Pressed({ImGuiKey_End}, false))
+    keyboard_.MoveCursorToEnd(true);
 
   // The controller.
   if (typing) {
@@ -370,16 +382,20 @@ void VirtualKeyboardDialog::HandleInput(ImGuiIO& io) {
   }
   int columns = 0;
   int rows = 0;
-  if (Pressed({ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadLStickLeft}, true)) --columns;
-  if (Pressed({ImGuiKey_GamepadDpadRight, ImGuiKey_GamepadLStickRight}, true)) ++columns;
-  if (Pressed({ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp}, true)) --rows;
-  if (Pressed({ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadLStickDown}, true)) ++rows;
+  if (held_keys_->Pressed({ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadLStickLeft}, true))
+    --columns;
+  if (held_keys_->Pressed({ImGuiKey_GamepadDpadRight, ImGuiKey_GamepadLStickRight}, true))
+    ++columns;
+  if (held_keys_->Pressed({ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp}, true))
+    --rows;
+  if (held_keys_->Pressed({ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadLStickDown}, true))
+    ++rows;
   if (columns != 0 || rows != 0) {
     keyboard_.MoveSelection(columns, rows);
     sounds.Play(GuideSounds::Cue::kKeyFocus);
   }
 
-  if (Pressed({ImGuiKey_GamepadFaceDown}, true)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadFaceDown}, true)) {
     Press(keyboard_.selected());
     const Result result = keyboard_.Activate();
     if (result == Result::kDone) {
@@ -393,27 +409,27 @@ void VirtualKeyboardDialog::HandleInput(ImGuiIO& io) {
     PressKind(kind);
     sound_for(changed ? Result::kChanged : Result::kRefused);
   };
-  if (Pressed({ImGuiKey_GamepadFaceLeft}, true)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadFaceLeft}, true)) {
     button(KeyKind::kBackspace, keyboard_.Backspace());
   }
-  if (Pressed({ImGuiKey_GamepadFaceUp}, true)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadFaceUp}, true)) {
     button(KeyKind::kSpace, keyboard_.Insert(u' '));
   }
-  if (Pressed({ImGuiKey_GamepadL1}, true)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadL1}, true)) {
     button(KeyKind::kCursorLeft, keyboard_.MoveCursor(-1));
   }
-  if (Pressed({ImGuiKey_GamepadR1}, true)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadR1}, true)) {
     button(KeyKind::kCursorRight, keyboard_.MoveCursor(1));
   }
-  if (Pressed({ImGuiKey_GamepadL2}, false)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadL2}, false)) {
     keyboard_.TogglePage(Page::kSymbols);
     button(KeyKind::kSymbols, true);
   }
-  if (Pressed({ImGuiKey_GamepadR2}, false)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadR2}, false)) {
     keyboard_.TogglePage(Page::kAccents);
     button(KeyKind::kAccents, true);
   }
-  if (Pressed({ImGuiKey_GamepadL3}, false)) {
+  if (held_keys_->Pressed({ImGuiKey_GamepadL3}, false)) {
     keyboard_.ToggleCaps();
     button(KeyKind::kCaps, true);
   }
@@ -426,7 +442,12 @@ void VirtualKeyboardDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) 
   if (opened_at_ < 0.0) {
     opened_at_ = now;
   }
-  const float open = EaseOut((now - opened_at_) / kOpenSeconds);
+  // TransOpen in, TransFrom out.
+  const float open =
+      finished_
+          ? std::clamp(1.0f - static_cast<float>((now - finished_at_) / kTransFromSeconds), 0.0f,
+                       1.0f)
+          : std::clamp(static_cast<float>((now - opened_at_) / kTransOpenSeconds), 0.0f, 1.0f);
 
   // Canvas units to the screen.
   const auto at = [&](float x, float y) {
@@ -464,8 +485,8 @@ void VirtualKeyboardDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) 
     const float text_size = size(kPromptTextSize);
     const ImVec2 position = in_scene(kPromptX, kPromptY);
     draw_list->AddText(DisplayFont(), text_size, position,
-                       Fade(IM_COL32(0xFF, 0xFF, 0xFF, 0xFF), open), description_.c_str(),
-                       nullptr, size(kPromptWidth));
+                       Fade(IM_COL32(0xFF, 0xFF, 0xFF, 0xFF), open), description_.c_str(), nullptr,
+                       size(kPromptWidth));
   }
 
   // The text field, with the cursor where the next character goes.
@@ -486,10 +507,10 @@ void VirtualKeyboardDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) 
   caret_position_ = ImVec2(text_left - scroll + cursor_offset, field_min.y);
   caret_height_ = field_max.y - field_min.y;
   if (std::fmod(now - opened_at_, kCaretHalfPeriod * 2.0) < kCaretHalfPeriod) {
-    draw_list->AddRectFilled(caret_position_,
-                             ImVec2(caret_position_.x + std::max(1.0f, size(kCaretWidth)),
-                                    field_max.y - size(2.0f)),
-                             Fade(kHighlight, open));
+    draw_list->AddRectFilled(
+        caret_position_,
+        ImVec2(caret_position_.x + std::max(1.0f, size(kCaretWidth)), field_max.y - size(2.0f)),
+        Fade(kHighlight, open));
   }
   draw_list->PopClipRect();
 
@@ -537,7 +558,8 @@ void VirtualKeyboardDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) 
       draw_label(ImVec2((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f), size(kCharacterTextSize));
     } else if (IsSideKey(key)) {
       // btn_topImageJ: the button's picture over the key's name.
-      const ImVec2 glyph_center((min.x + max.x) * 0.5f, min.y + size(4.0f + kSideGlyphHeight * 0.5f));
+      const ImVec2 glyph_center((min.x + max.x) * 0.5f,
+                                min.y + size(4.0f + kSideGlyphHeight * 0.5f));
       if (picture) {
         const float half_width = size(kSideGlyphWidth) * 0.5f;
         const float half_height = size(kSideGlyphHeight) * 0.5f;
@@ -557,9 +579,9 @@ void VirtualKeyboardDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) 
       // button beside the name.
       const float glyph_size = size(kRowGlyphSize);
       const bool left = key.kind == KeyKind::kBackspace;
-      const ImVec2 glyph_center(left ? min.x + size(4.0f) + glyph_size * 0.5f
-                                     : max.x - size(4.0f) - glyph_size * 0.5f,
-                                (min.y + max.y) * 0.5f);
+      const ImVec2 glyph_center(
+          left ? min.x + size(4.0f) + glyph_size * 0.5f : max.x - size(4.0f) - glyph_size * 0.5f,
+          (min.y + max.y) * 0.5f);
       if (picture) {
         const float half = glyph_size * 0.5f;
         draw_list->AddImage(reinterpret_cast<ImTextureID>(picture),
@@ -567,9 +589,9 @@ void VirtualKeyboardDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) 
                             ImVec2(glyph_center.x + half, glyph_center.y + half), ImVec2(0, 0),
                             ImVec2(1, 1), Fade(IM_COL32(255, 255, 255, 255), open));
       } else {
-        DrawGlyph(draw_list, glyph_center, glyph_size * 0.8f,
-                  left ? IM_COL32(0x2A, 0x7A, 0xD8, 255) : IM_COL32(0xF0, 0xB0, 0x1C, 255),
-                  glyph.fallback, open);
+        DrawGlyph(draw_list, glyph_center, glyph_size * 0.8f, glyph.fallback, open,
+                  reinterpret_cast<ImTextureID>(
+                      resources_ ? resources_->Get(ButtonPicture(glyph.fallback)) : nullptr));
       }
       const float text_size = size(kLabelTextSize);
       const float center_x = left ? (glyph_center.x + glyph_size * 0.5f + max.x) * 0.5f
@@ -584,27 +606,28 @@ void VirtualKeyboardDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) 
   // The legend, centred under the scene.
   struct Hint {
     const char* button;
-    ImU32 color;
     const char* label;
   };
   const Hint hints[] = {
-      {"A", IM_COL32(0x4C, 0xB0, 0x2A, 255), "Select"},
-      {"B", IM_COL32(0xD8, 0x2C, 0x2C, 255), "Back"},
-      {"X", IM_COL32(0x2A, 0x7A, 0xD8, 255), "Backspace"},
-      {"Y", IM_COL32(0xF0, 0xB0, 0x1C, 255), "Space"},
+      {"A", "Select"},
+      {"B", "Back"},
+      {"X", "Backspace"},
+      {"Y", "Space"},
   };
   const float legend_text = size(kLegendTextSize);
   const float glyph = size(kLegendGlyph);
   float total = 0.0f;
   for (const Hint& hint : hints) {
-    total += glyph + size(kLegendGlyphGap) + TextWidth(legend_text, hint.label) +
-             size(kLegendItemGap);
+    total +=
+        glyph + size(kLegendGlyphGap) + TextWidth(legend_text, hint.label) + size(kLegendItemGap);
   }
   total -= size(kLegendItemGap);
   float x = screen.center.x - total * 0.5f;
   const float y = at(0.0f, kLegendY).y;
   for (const Hint& hint : hints) {
-    DrawGlyph(draw_list, ImVec2(x + glyph * 0.5f, y), glyph, hint.color, hint.button, open);
+    DrawGlyph(draw_list, ImVec2(x + glyph * 0.5f, y), glyph, hint.button, open,
+              reinterpret_cast<ImTextureID>(resources_ ? resources_->Get(ButtonPicture(hint.button))
+                                                       : nullptr));
     const ImVec2 position(x + glyph + size(kLegendGlyphGap), y - legend_text * 0.55f);
     shadowed(position, legend_text, palette.chrome, palette.shadow, hint.label);
     x = position.x + TextWidth(legend_text, hint.label) + size(kLegendItemGap);

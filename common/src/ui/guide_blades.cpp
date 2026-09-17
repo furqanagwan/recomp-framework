@@ -524,17 +524,16 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
   // The legend.
   struct Hint {
     const char* letter;
-    ImU32 color;
     const char* label;
   };
-  const Hint a_select = {"A", IM_COL32(0x4C, 0xB0, 0x2A, 255), "Select"};
-  const Hint b_back = {"B", IM_COL32(0xD8, 0x2C, 0x2C, 255), "Back"};
+  const Hint a_select = {"A", "Select"};
+  const Hint b_back = {"B", "Back"};
   std::vector<Hint> hints;
   switch (page_) {
     case Page::kRoot:
       hints = {a_select, b_back};
       if (actions_.exit_game) {
-        hints.push_back({"Y", IM_COL32(0xF0, 0xB0, 0x1C, 255), "Leave Game"});
+        hints.push_back({"Y", "Leave Game"});
       }
       break;
     case Page::kExitConfirmation:
@@ -544,8 +543,7 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
       hints = {b_back};
       break;
     case Page::kSettings:
-      hints = {{"A", a_select.color, "Change"}, b_back,
-               {"X", IM_COL32(0x2A, 0x7A, 0xD8, 255), "Save"}};
+      hints = {{"A", "Change"}, b_back, {"X", "Save"}};
       break;
   }
   const float legend_text = screen.Size(kLegendTextSize);
@@ -553,7 +551,8 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
   float x = screen.At(kLegendLeft, 0.0f).x;
   const float y = screen.At(0.0f, kLegendY).y;
   for (const Hint& hint : hints) {
-    DrawGlyph(draw_list, ImVec2(x + glyph * 0.5f, y), glyph, hint.color, hint.letter, open);
+    DrawGlyph(draw_list, ImVec2(x + glyph * 0.5f, y), glyph, hint.letter, open,
+              reinterpret_cast<ImTextureID>(Artwork(ButtonPicture(hint.letter))));
     const ImVec2 text(x + glyph + screen.Size(kLegendGlyphGap), y - legend_text * 0.55f);
     shadowed(text, legend_text, hint.label);
     x = text.x + TextWidth(legend_text, hint.label) + screen.Size(kLegendItemGap);

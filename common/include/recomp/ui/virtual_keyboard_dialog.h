@@ -15,6 +15,7 @@
 namespace recomp {
 
 class GuideResources;
+class HeldKeyMask;
 struct GuideTheme;
 
 // The keyboard a title opens to have the player type a name (XamShowKeyboardUI),
@@ -47,8 +48,6 @@ class VirtualKeyboardDialog final : public rex::ui::ImGuiDialog {
   void Finish(std::optional<std::u16string> text);
   void DrawScene(ImDrawList* draw_list, const ImGuiIO& io);
 
-  bool Pressed(std::initializer_list<ImGuiKey> keys, bool repeat);
-  void ArmInput();
 
   const GuideTheme& theme_;
   std::unique_ptr<GuideResources> resources_;
@@ -58,6 +57,7 @@ class VirtualKeyboardDialog final : public rex::ui::ImGuiDialog {
   Done done_;
   std::optional<std::u16string> result_;
   bool finished_ = false;
+  double finished_at_ = 0.0;
 
   // Where the text field's cursor was drawn, for an input method's candidate window.
   ImVec2 caret_position_;
@@ -66,7 +66,7 @@ class VirtualKeyboardDialog final : public rex::ui::ImGuiDialog {
   double pressed_at_ = 0.0;
   int frames_drawn_ = 0;
   double opened_at_ = -1.0;
-  std::vector<ImGuiKey> masked_keys_;
+  std::unique_ptr<HeldKeyMask> held_keys_;
 };
 
 }  // namespace recomp
