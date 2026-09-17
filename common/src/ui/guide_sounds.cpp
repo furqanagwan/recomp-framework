@@ -22,12 +22,14 @@ namespace recomp {
 namespace {
 
 // The files each cue plays, first found wins: the guide's own sounds from
-// hud.xex and xam.xex's xam package, then the shared ones from shrdres. Static,
+// hud.xex, xam.xex's xam package and the guide apps' skin (btn_focusG, btn_selectG
+// and btn_backG in Guide.AccountRecovery.xex's shdmedia), then the shared ones
+// from shrdres. Static,
 // so the lists outlive the call that hands them out.
 std::span<const char* const> Files(GuideSounds::Cue cue) {
   static constexpr const char* kOpen[] = {"HUD_open.xma", "BladeOpen.xma"};
   static constexpr const char* kClose[] = {"HUD_close.xma", "btn_Back.xma"};
-  static constexpr const char* kFocus[] = {"btn_Focus.xma"};
+  static constexpr const char* kFocus[] = {"btn_focusG.xma", "btn_Focus.xma"};
   static constexpr const char* kSelect[] = {"btn_selectG.xma", "btn_Select.xma"};
   static constexpr const char* kBack[] = {"btn_backG.xma", "btn_Back.xma"};
   static constexpr const char* kTabSwitch[] = {"tab_Switch.xma"};
