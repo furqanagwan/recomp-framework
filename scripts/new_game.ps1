@@ -70,7 +70,12 @@ Remove-Item (Join-Path $gameRoot 'src') -Recurse -Force -ErrorAction SilentlyCon
 foreach ($source in $destinations.Keys) { Write-Template $source $destinations[$source] }
 
 $manifest = Join-Path $gameRoot "$($ProjectName)_manifest.toml"
-$manifestText = [IO.File]::ReadAllText($manifest) -replace 'includes = \[\]', "includes = [`n    `"config/codegen.toml`",`n    `"config/functions.toml`",`n]"
+# The executable's includes come first. DLL modules share only codegen.toml: their seeds
+# are other addresses, and the analysis scripts give each module its own functions.toml.
+$emptyIncludes = [regex]'includes = \[\]'
+$manifestText = [IO.File]::ReadAllText($manifest)
+$manifestText = $emptyIncludes.Replace($manifestText, "includes = [`n    `"config/codegen.toml`",`n    `"config/functions.toml`",`n]", 1)
+$manifestText = $emptyIncludes.Replace($manifestText, "includes = [`n    `"config/codegen.toml`",`n]")
 [IO.File]::WriteAllText($manifest, $manifestText.Replace("`r`n", "`n"))
 
 Write-Host "Created $Folder ($DisplayName). Next: .\framework\scripts\discover_functions.ps1 -Game $Folder, then fill in the README TODOs"
