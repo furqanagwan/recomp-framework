@@ -6,7 +6,11 @@ then:
   python summarize_gpu_trace.py <build dir>/trace.jsonl
 
 The summary lists each pass (render target size and format) with its draws, the
-pixel shaders by draw count, and texture formats. Formats whose conversion is a
+shader programs and pixel shaders by draw count, and texture formats. With
+--gpu_trace_constants=N it also reports, per shader program, which of the traced
+vertex constants hold still and which change per draw: the still ones are the
+camera and projection candidates a native renderer sets once a frame, the moving
+ones its per-object transforms. Formats whose conversion is a
 common source of colour bugs are flagged: a green or magenta tint usually means a
 YUV or two-channel normal map texture reached a shader as colour. To find the draw
 behind an artifact, skip its pixel shader with --gpu_skip_pixel_shaders=<hash> and
@@ -43,6 +47,55 @@ def load(path: Path) -> list[dict]:
     return draws
 
 
+def constants_report(draws: list[dict]) -> list[str]:
+    """Per shader program, which traced vertex constants hold still and which move.
+
+    A constant that never changes over a program's draws is a candidate for the
+    camera or projection the game sets once a frame; one that changes per draw is
+    a candidate for that draw's own transform. A constant that holds within each
+    frame but differs between frames is a camera that moved.
+    """
+    by_program = defaultdict(list)
+    for draw in draws:
+        if draw.get("constants"):
+            by_program[(draw.get("vs") or "(none)", draw["ps"] or "(none)")].append(draw)
+    if not by_program:
+        return []
+
+    lines = ["", "Vertex constants (run with --gpu_trace_constants=N)"]
+    for (vertex, pixel), members in sorted(by_program.items(), key=lambda item: -len(item[1])):
+        vectors = min(len(draw["constants"]) for draw in members)
+        still, per_frame, per_draw = [], [], []
+        for vector in range(vectors):
+            values = {tuple(draw["constants"][vector]) for draw in members}
+            if len(values) == 1:
+                still.append(vector)
+                continue
+            within_frame = defaultdict(set)
+            for draw in members:
+                within_frame[draw["frame"]].add(tuple(draw["constants"][vector]))
+            (per_frame if all(len(v) == 1 for v in within_frame.values()) else per_draw).append(vector)
+        lines.append(f"  {vertex}:{pixel} ({len(members)} draws, c0-c{vectors - 1})")
+        for label, group in (("same every draw", still), ("same within a frame", per_frame),
+                             ("per draw", per_draw)):
+            if group:
+                lines.append(f"    {label}: {format_vectors(group)}")
+    return lines
+
+
+def format_vectors(vectors: list[int]) -> str:
+    """Constant vector numbers as ranges: [0,1,2,5] -> "c0-c2, c5"."""
+    parts = []
+    start = previous = vectors[0]
+    for vector in vectors[1:] + [None]:
+        if vector == previous + 1:
+            previous = vector
+            continue
+        parts.append(f"c{start}" if start == previous else f"c{start}-c{previous}")
+        start = previous = vector
+    return ", ".join(parts)
+
+
 def summarize(draws: list[dict]) -> list[str]:
     lines = []
     frames = sorted({draw["frame"] for draw in draws})
@@ -56,6 +109,17 @@ def summarize(draws: list[dict]) -> list[str]:
     lines.append("Passes (surface width, colour format, MSAA): draws")
     for (pitch, color_format, msaa), members in sorted(passes.items(), key=lambda item: -len(item[1])):
         lines.append(f"  {pitch:>5} {color_format:<28} x{msaa}: {len(members)}")
+
+    programs = Counter((draw.get("vs") or "(none)", draw["ps"] or "(none)") for draw in draws)
+    lines.append("")
+    lines.append("Shader programs (vertex, pixel) by draws")
+    for (vertex, pixel), count in programs.most_common(15):
+        lines.append(f"  {vertex}:{pixel}: {count}")
+    if programs:
+        selection = ",".join(f"{vertex}:{pixel}" for (vertex, pixel), _ in programs.most_common(3))
+        lines.append(f"  trace only these: --gpu_trace_shaders={selection}")
+
+    lines.extend(constants_report(draws))
 
     shaders = Counter(draw["ps"] or "(none)" for draw in draws)
     lines.append("")
