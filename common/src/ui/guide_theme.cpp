@@ -2,14 +2,18 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <filesystem>
+#include <vector>
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include "recomp/ui/guide_fonts.h"
+#include "recomp/ui/guide_resources.h"
 
 REXCVAR_DEFINE_STRING(recomp_guide_font, "", "Recomp",
-                      "Optional TTF/OTF font for the guide. Empty uses Windows Segoe UI when available.")
+                      "Optional TTF/OTF font for the guide. Empty uses the console's Segoe Xbox "
+                      "Regular when the guide's resources include it, then Windows Segoe UI.")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 REXCVAR_DEFINE_STRING(recomp_guide_theme, "metro", "Recomp",
@@ -90,23 +94,53 @@ GuideTheme BladesTheme() {
 
 }  // namespace
 
+namespace {
+
+// The console's own face: dash.ClosedCaptionDll.xex's ccfonts package carries
+// "Segoe Xbox Regular" as an ordinary TrueType file.
+constexpr const char* kConsoleFontFile = "segoer.ttf";
+
+// ImGui frees font data it owns with IM_FREE, so it gets its own copy.
+ImFont* AddFontFromBytes(ImFontAtlas* atlas, const std::vector<uint8_t>& bytes, float size,
+                         const ImFontConfig& config) {
+  auto* data = static_cast<uint8_t*>(IM_ALLOC(bytes.size()));
+  std::memcpy(data, bytes.data(), bytes.size());
+  return atlas->AddFontFromMemoryTTF(data, static_cast<int>(bytes.size()), size, &config);
+}
+
+}  // namespace
+
 void ConfigureGuideFonts(ImFontAtlas* atlas) {
   guide_font = nullptr;
   guide_display_font = nullptr;
+  ImFontConfig config;
+  config.OversampleH = 3;
+  config.OversampleV = 2;
+  config.PixelSnapH = false;
+  ImFontConfig display_config;
+  display_config.OversampleH = 1;
+  display_config.OversampleV = 1;
+
   std::filesystem::path path(REXCVAR_GET(recomp_guide_font));
+  if (path.empty()) {
+    GuideResources resources(nullptr);
+    resources.LoadIfNeeded();
+    if (const std::vector<uint8_t>* bytes = resources.Bytes(kConsoleFontFile)) {
+      guide_font = AddFontFromBytes(atlas, *bytes, 16.0f, config);
+      guide_display_font = AddFontFromBytes(atlas, *bytes, 96.0f, display_config);
+      if (guide_font) {
+        REXLOG_INFO("Guide: using the console's font ({} from {})", kConsoleFontFile,
+                    resources.source());
+        return;
+      }
+    }
+  }
 #if defined(_WIN32)
   if (path.empty()) path = "C:/Windows/Fonts/segoeui.ttf";
 #endif
   std::error_code ec;
   if (!path.empty() && std::filesystem::is_regular_file(path, ec)) {
-    ImFontConfig config;
-    config.OversampleH = 3;
-    config.OversampleV = 2;
-    config.PixelSnapH = false;
     guide_font = atlas->AddFontFromFileTTF(path.string().c_str(), 16.0f, &config);
-    ImFontConfig display_config;
-    display_config.OversampleH = 1;
-    display_config.OversampleV = 1;
     guide_display_font = atlas->AddFontFromFileTTF(path.string().c_str(), 96.0f, &display_config);
     if (guide_font) REXLOG_INFO("Guide: using font {}", path.string());
   }
