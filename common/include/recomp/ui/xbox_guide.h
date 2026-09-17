@@ -20,11 +20,13 @@ class ImGuiDrawer;
 namespace recomp {
 
 class GuideDialog;
+class VirtualKeyboardDialog;
 
 // The Xbox 360 compatibility Guide: the shell between the host and the
-// recompiled game, in the place the console's dashboard Guide occupies.
+// recompiled game, in the place the console's dashboard Guide occupies. It also
+// answers a title's XamShowKeyboardUI with its on-screen keyboard.
 //
-// Two routes open it and both end here:
+// Two routes open the guide and both end here:
 //   - the player pressing View + Menu on a controller, and
 //   - the game asking for a dashboard screen (XamShowGuideUI and friends).
 //
@@ -62,6 +64,7 @@ class XboxGuide {
   void Close();
   void Toggle();
   bool IsOpen() const { return menu_ != nullptr; }
+  bool IsKeyboardOpen() const { return keyboard_ != nullptr; }
 
   // The screen a game asked for. Anything the guide has no screen of its own
   // for opens the guide, which is what a console shows for most of them.
@@ -69,10 +72,13 @@ class XboxGuide {
 
  private:
   void ScheduleDebugOpen();
+  void ShowKeyboard(const rex::kernel::xam::KeyboardUiRequest& request,
+                    rex::kernel::xam::KeyboardUiResult done);
 
   rex::ui::ImGuiDrawer* drawer_ = nullptr;
   Actions actions_;
   GuideDialog* menu_ = nullptr;
+  VirtualKeyboardDialog* keyboard_ = nullptr;
   bool system_ui_active_ = false;
 };
 

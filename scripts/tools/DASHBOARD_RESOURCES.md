@@ -89,6 +89,33 @@ These findings correct the earlier assumption that the dashboard's shared skin
 and mini gamercard alone establish the compatibility guide's layout. No guide
 dimensions or font substitutions were made from unrelated dashboard controls.
 
+## On-screen keyboard (17559 system update)
+
+The console's keyboard is `vk.xex` in flash; a system update carries only a
+patch for its package (`L.vk.xex.vk.xzp` starts `BDES`). Two full executables
+in the update embed the same keyboard media, which the framework's keyboard
+uses when they are in the guide's resources folder:
+
+```powershell
+rexglue resources '$SystemUpdate/Dash.Search.xex' -o 'work/dash.search'
+# copy work/dash.search/vkmedia and work/dash.search/dashsear to resources/guide
+```
+
+- `vkmedia` (also in `Title.Zune.xex`): `KeyboardMain.xur`, the HUD scene
+  (`XuiHUDKeyboardScene`, class `CKeyboardScene`, 852 by 480, legend A Select,
+  B Back, X Backspace, Y Space), and `KeyboardBase.xur`, the keys: five rows of
+  ten 32 by 25 keys on a 34 by 27 pitch, Backspace and Space under them, and
+  92 by 52 side keys for LB/RB (cursor), LT/RT, Caps and Done, with the button
+  pictures `LB.png`, `RB.png`, `LT.png`, `RT.png`, `Caps.png` (left stick
+  click), `Done.png` (START), `btn_x.png` and `btn_y.png`. The characters and
+  the LT/RT page names are set by vk.xex's code and are not in the scene.
+- `dashsear`: `vk/vk_Focus.xma` and `vk/vk_Select.xma`, and `skin_search.xur`
+  with the key visuals. `btn_KbrdChar` plays vk_Focus on focus and vk_Select on
+  press, turns a green highlight (#008A00) on at once, and brightens it to
+  #1CB61C over frames 16 to 21 while pressed. `evk_EditCaret` blinks a 3-wide
+  green caret every 30 frames.
+- The only timeline in `KeyboardBase` is the Japanese kana flick menu.
+
 ## Validation
 
 ```powershell

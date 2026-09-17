@@ -16,7 +16,8 @@ class GuideResources;
 //
 // They come from the same player-supplied folder as the guide's artwork (see
 // GuideResources): hud.xex's blade sounds, xam.xex's open, close and
-// notification chimes, the skin's button clicks. Each decodes the first time
+// notification chimes, the skin's button clicks, and the keyboard's key sounds
+// (vk_Focus and vk_Select, in Dash.Search.xex's packages). Each decodes the first time
 // it plays. With nothing supplied, or recomp_guide_sounds off, it stays quiet.
 class GuideSounds {
  public:
@@ -28,6 +29,9 @@ class GuideSounds {
     kBack,          // B back out of a page
     kTabSwitch,     // the blades move to another tab
     kNotification,  // a notification, such as an achievement, pops up
+    kKeyFocus,      // the keyboard's highlight moves to another key
+    kKeySelect,     // a key is pressed
+    kKeyRefused,    // a key that can do nothing: the text is full, the cursor at an end
   };
 
   static GuideSounds& Get();

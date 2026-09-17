@@ -32,6 +32,10 @@ std::span<const char* const> Files(GuideSounds::Cue cue) {
   static constexpr const char* kBack[] = {"btn_backG.xma", "btn_Back.xma"};
   static constexpr const char* kTabSwitch[] = {"tab_Switch.xma"};
   static constexpr const char* kNotification[] = {"NotifyPopup.xma"};
+  // The keyboard's keys (vkmedia's btn_KbrdChar visual), then the skin's own.
+  static constexpr const char* kKeyFocus[] = {"vk_Focus.xma", "btn_Focus.xma"};
+  static constexpr const char* kKeySelect[] = {"vk_Select.xma", "btn_Select.xma"};
+  static constexpr const char* kKeyRefused[] = {"btn_InactiveSelect.xma"};
   switch (cue) {
     case GuideSounds::Cue::kOpen:
       return kOpen;
@@ -47,6 +51,12 @@ std::span<const char* const> Files(GuideSounds::Cue cue) {
       return kTabSwitch;
     case GuideSounds::Cue::kNotification:
       return kNotification;
+    case GuideSounds::Cue::kKeyFocus:
+      return kKeyFocus;
+    case GuideSounds::Cue::kKeySelect:
+      return kKeySelect;
+    case GuideSounds::Cue::kKeyRefused:
+      return kKeyRefused;
   }
   return {};
 }

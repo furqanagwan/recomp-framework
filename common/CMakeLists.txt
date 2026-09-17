@@ -37,6 +37,7 @@ add_library(recomp_common STATIC
     src/ui/guide_sounds.cpp
     src/ui/guide_theme.cpp
     src/ui/xbox_guide.cpp
+    src/ui/virtual_keyboard_dialog.cpp
 )
 
 if(REXGLUE_PLATFORM_UWP)
