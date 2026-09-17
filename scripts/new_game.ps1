@@ -23,9 +23,13 @@ if (Test-Path (Join-Path $gameRoot 'CMakeLists.txt')) { throw "$Folder already c
 $appClass = (($ProjectName -split '_') | ForEach-Object { $_.Substring(0, 1).ToUpper() + $_.Substring(1) }) -join ''
 $appClass += 'App'
 $identityAlias = ($DisplayName -replace '[^A-Za-z0-9]', '')
+# The executable is named after the game, without the characters Windows does not
+# allow in file names ("NBA Ballers: Chosen One" -> "NBA Ballers Chosen One").
+$executableName = (($DisplayName -replace '[<>:"/\\|?*]', ' ') -replace '\s+', ' ').Trim()
 $replacements = @{
     '@PROJECT_NAME@'   = $ProjectName
     '@DISPLAY_NAME@'   = $DisplayName
+    '@EXECUTABLE_NAME@' = $executableName
     '@APP_CLASS@'      = $appClass
     '@IDENTITY_NAME@'  = "$($Publisher -replace '[^A-Za-z0-9]', '').$($identityAlias.ToUpper())"
     '@IDENTITY_ALIAS@' = $identityAlias

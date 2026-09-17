@@ -61,7 +61,7 @@ Region list from [Redump](http://redump.org/discs/system/xbox360/).
 
 1. Download `TODO-v<version>-windows-x64.zip` from the repository's Releases page
    and extract it to a folder you can write to.
-2. Run `@DISPLAY_NAME@.exe` and choose your Xbox 360 ISO (see
+2. Run `@EXECUTABLE_NAME@.exe` and choose your Xbox 360 ISO (see
    [Regions](#regions)); the files are copied once.
 3. Open the system menu with **View + Menu** (or **Esc**) for Settings and Exit.
 

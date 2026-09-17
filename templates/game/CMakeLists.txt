@@ -8,7 +8,7 @@ include(generated/rexglue.cmake)
 include(../framework/cmake/Recomp.cmake)
 
 recomp_add_game(@PROJECT_NAME@
-    OUTPUT_NAME "@DISPLAY_NAME@"
+    OUTPUT_NAME "@EXECUTABLE_NAME@"
     SOURCES
         src/main.cpp
     SETTINGS "${CMAKE_CURRENT_SOURCE_DIR}/settings/@PROJECT_NAME@.toml"

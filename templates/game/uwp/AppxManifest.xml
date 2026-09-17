@@ -28,7 +28,7 @@
   </Resources>
 
   <Applications>
-    <Application Id="App" Executable="@DISPLAY_NAME@.exe" EntryPoint="@APP_CLASS@.App">
+    <Application Id="App" Executable="@EXECUTABLE_NAME@.exe" EntryPoint="@APP_CLASS@.App">
       <uap:VisualElements DisplayName="@DISPLAY_NAME@"
                           Description="@LABEL@, first released on Xbox 360 in @RELEASE_YEAR@. Native recompilation of the Xbox 360 version; runs from your own copy of the game."
                           BackgroundColor="#000000"

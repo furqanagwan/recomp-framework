@@ -20,7 +20,7 @@ BEGIN
             VALUE "ProductName", "@DISPLAY_NAME@"
             VALUE "LegalCopyright", "@DISPLAY_NAME@ (c) @RELEASE_YEAR@ @PUBLISHER@. Not affiliated with or endorsed by @PUBLISHER@."
             VALUE "InternalName", "@PROJECT_NAME@"
-            VALUE "OriginalFilename", "@DISPLAY_NAME@.exe"
+            VALUE "OriginalFilename", "@EXECUTABLE_NAME@.exe"
             VALUE "FileVersion", "1.0.0.0"
             VALUE "ProductVersion", "1.0.0.0"
         END
