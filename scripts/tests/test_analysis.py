@@ -190,6 +190,18 @@ def test_module_gets_its_own_config_and_manifest_include(game):
     assert manifest["entrypoint"]["includes"] == ["config/functions.toml"]
 
 
+def test_functions_config_comes_from_the_manifest(game):
+    # A game targeting a title update keeps that version's seeds in its own folder.
+    manifest = game / "game_manifest.toml"
+    manifest.write_text(manifest.read_text().replace(
+        '"config/functions.toml",', '"config/tu3/functions.toml",'))
+    (game / "config" / "tu3").mkdir()
+    (game / "config" / "tu3" / "functions.toml").write_text("[functions]\n")
+    project = RecompProject("game")
+    assert project.functions_config == game / "config" / "tu3" / "functions.toml"
+    assert project.disabled_seeds_log == game / "config" / "tu3" / "disabled_function_seeds.txt"
+
+
 def test_unknown_module_is_rejected(game):
     with pytest.raises(SystemExit):
         RecompProject("game", "Missing_DLL")
@@ -314,3 +326,24 @@ def test_gpu_trace_summary_flags_formats_and_names_skip_candidates():
     assert "k_DXN: 2  <- two-channel normal map" in report
     assert "--gpu_skip_pixel_shaders=BBBB" in report
     assert "AAAA" in report and "--gpu_skip_pixel_shaders=AAAA" not in report
+
+
+def test_gpu_trace_summary_separates_still_and_moving_constants():
+    from summarize_gpu_trace import summarize
+
+    def draw(frame, constants):
+        return {"frame": frame, "draw": 0, "skipped": False, "surface_pitch": 1280,
+                "color_format": "k_8_8_8_8", "msaa": 1, "vs": "AA", "ps": "BB",
+                "textures": [], "constants": constants}
+
+    projection = [1.0, 0.0, 0.0, 0.0]
+    camera = [0.0, 2.0, 0.0, 0.0]
+    report = "\n".join(summarize([
+        draw(1, [projection, camera, [1.0, 1.0, 1.0, 1.0]]),
+        draw(1, [projection, camera, [2.0, 2.0, 2.0, 2.0]]),
+        draw(2, [projection, [9.0, 9.0, 9.0, 9.0], [3.0, 3.0, 3.0, 3.0]]),
+    ]))
+    assert "--gpu_trace_shaders=AA:BB" in report
+    assert "same every draw: c0" in report
+    assert "same within a frame: c1" in report
+    assert "per draw: c2" in report

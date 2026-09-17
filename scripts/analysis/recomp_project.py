@@ -41,9 +41,19 @@ class RecompProject:
             raise SystemExit(f"No *_manifest.toml in {self.root}")
         entry = self._manifest_entry(module)
         self.generated = self.root / entry["out_directory_path"]
-        config = self.root / "config" if module == self.DEFAULT_MODULE else self.root / "config" / module
-        self.functions_config = config / "functions.toml"
-        self.disabled_seeds_log = config / "disabled_function_seeds.txt"
+        # The manifest names the module's own functions.toml, so a game that targets
+        # a title update keeps that version's seeds in its own folder (config/tu3/)
+        # while the disc build keeps config/. Everything else - the disabled seed
+        # log, setjmp.toml, switch_tables.toml - sits beside it.
+        listed = [include for include in entry.get("includes", [])
+                  if Path(include).name == "functions.toml"]
+        if listed:
+            self.functions_config = self.root / listed[0]
+        elif module == self.DEFAULT_MODULE:
+            self.functions_config = self.root / "config" / "functions.toml"
+        else:
+            self.functions_config = self.root / "config" / module / "functions.toml"
+        self.disabled_seeds_log = self.functions_config.parent / "disabled_function_seeds.txt"
         if module != self.DEFAULT_MODULE:
             self._ensure_module_config()
 

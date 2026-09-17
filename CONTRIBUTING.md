@@ -139,7 +139,19 @@ For an update build:
    codegen manifest. Codegen loads the staged XEX and applies its adjacent patch.
 3. Fill `GameDescriptor::title_update` with the update label, title ID, media ID,
    version, and the size and lowercase XXH3-128 digest of every required `.xexp`.
-4. Record the same update in the game's README and `release.json`.
+4. Give the update its own codegen config and rediscover its functions. An
+   update moves code, so the disc build's seeds land in the middle of its
+   functions and split them; the sources still compile, but every split leaves a
+   `REX_FATAL` stub that kills the game when it is reached. Point the manifest's
+   `includes` at a per-version folder (`config/tu3/functions.toml`, and
+   `config/tu3/<module>/functions.toml` for a patched DLL), start it at
+   `[functions]` and run `discover_functions.ps1` again. The analysis scripts
+   read that path from the manifest, so `disabled_function_seeds.txt`,
+   `setjmp.toml` and `switch_tables.toml` are written beside it and the disc
+   build's `config/` is left alone. Check for leftovers before playing:
+   `Select-String -Path <FOLDER>\generated\*\*.cpp -Pattern 'REX_FATAL\("Unresolved'`
+   must find nothing.
+5. Record the same update in the game's README and `release.json`.
 
 On first launch, that build asks the player for their title update package (or
 uses `RECOMP_INSTALL_TU`). It verifies the package and code-patch digests, then
@@ -156,6 +168,9 @@ The SDK has cvars for rendering bugs that work in release builds; pass them with
 | --- | --- |
 | `--frame_stats_csv=<file>` | One line per guest frame (time, draws, resolves) and an FPS summary in the log. `run_game.ps1` sets it and summarises it |
 | `--gpu_trace_frame=<N>` (`--gpu_trace_frame_count`, `--gpu_trace_path`) | One JSON line per draw of frame N: render target, shader hashes, texture formats and sizes |
+| `--gpu_trace_shaders=<vs>[:<ps>],...` | Traces only these shader programs' draws. A busy frame's full trace is hundreds of megabytes; one geometry program is a few |
+| `--gpu_trace_constants=<N>` | Records the first N vertex shader constant vectors of each traced draw: the transform chain |
+| `--gpu_trace_vertex_buffers=true` | Records each traced draw's vertex buffers: fetch slot, guest address, size and stride |
 | `--gpu_skip_pixel_shaders=<hash>,...` | Drops draws by pixel shader hash |
 
 To find the draw behind an artifact, take a screenshot where it shows, trace that
@@ -166,10 +181,29 @@ frame, and summarise the trace:
 python framework/scripts/analysis/summarize_gpu_trace.py <FOLDER>/out/build/win-amd64-release/gpu_trace.jsonl
 ```
 
-The summary groups draws by pass and pixel shader and flags texture formats whose
-conversion commonly goes wrong (YUV, two-channel normal maps). Rerun with
-`--gpu_skip_pixel_shaders` set to a suspect's hash; when the artifact disappears
-from the screenshot, that shader's draws are the ones to investigate.
+The summary groups draws by pass, shader program and pixel shader, and flags
+texture formats whose conversion commonly goes wrong (YUV, two-channel normal
+maps). Rerun with `--gpu_skip_pixel_shaders` set to a suspect's hash; when the
+artifact disappears from the screenshot, that shader's draws are the ones to
+investigate.
+
+### Finding a game's own geometry
+
+A native renderer (see the SDK's `docs/native_rendering.md`) has to know which
+draws are the game's world and where its transforms live. The summary's shader
+programs, ordered by draws, name the candidates and print the
+`--gpu_trace_shaders=` line that traces only those. Trace them again with
+constants and vertex buffers:
+
+```
+.\framework\scripts\run_game.ps1 -Game <FOLDER> -Seconds 60 -Screenshots 55 -GameArgs '--gpu_trace_frame=3000','--gpu_trace_frame_count=30','--gpu_trace_shaders=<vs>:<ps>','--gpu_trace_constants=16','--gpu_trace_vertex_buffers=true'
+```
+
+The summary then reports, per program, which of those constants never change
+(the projection the game sets once), which change only between frames (the
+camera) and which change per draw (that object's own transform). A program whose
+vertex shader reads no transform constants and fetches no textures is interface
+or overlay geometry, not the world.
 
 ### Games with DLL modules
 
