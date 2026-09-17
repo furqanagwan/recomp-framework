@@ -230,6 +230,33 @@ def test_short_jump_table_is_found(game, tmp_path):
     assert tables[0].labels == [case_label] * 5
 
 
+def test_jump_table_capped_by_codegen_is_sized_from_its_bounds_check(game, tmp_path):
+    # Codegen stops at max_jump_table_entries, so the targets past the cap are not labels.
+    function = TEXT
+    table = TEXT + 0x20
+    case_label = TEXT + 0x40
+    unlabelled_target = TEXT + 0x48
+    high, low = split_address(table)
+    image = ImageBuilder()
+    image.words(table, [case_label] * 2 + [unlabelled_target] * 3 + [DATA])
+    guest = image.save(tmp_path / "image.bin")
+    generated = game / "generated" / "default"
+    generated.mkdir(parents=True)
+    (generated / "game_recomp.0.cpp").write_text(
+        f"DEFINE_REX_FUNC(sub_{function:08X}) {{\n"
+        "\t// cmplwi cr6,r11,4\n\t// bgt cr6,0x82010040\n"
+        f"\t// lis r12,{(high >> 16) - 0x10000 if high >> 16 & 0x8000 else high >> 16}\n"
+        f"\t// addi r12,r12,{low - 0x10000 if low & 0x8000 else low}\n"
+        "\t// rlwinm r0,r11,2,0,29\n\t// lwzx r0,r12,r0\n\t// mtctr r0\n\t// bctr \n"
+        "\tswitch (ctx.r11.u32) {\n\tcase 0:\n\t\tgoto loc_x;\n\tcase 1:\n\t\tgoto loc_x;\n"
+        "\tdefault:\n\t\t__builtin_trap();\n\t}\n"
+        f"loc_{case_label:08X}:\n\t// blr \n}}\n")
+    tables = short_tables(RecompProject("game"), guest)
+    assert len(tables) == 1
+    assert tables[0].generated_cases == 2
+    assert tables[0].labels == [case_label] * 2 + [unlabelled_target] * 3
+
+
 def _float_lines(mnemonic: str, base: str, offset: int = 0) -> str:
     return "".join(f"\t// {mnemonic} f{14 + index},{offset + 8 * index}({base})\n" for index in range(18))
 

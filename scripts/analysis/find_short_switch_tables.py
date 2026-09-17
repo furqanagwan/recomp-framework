@@ -33,6 +33,9 @@ def signed16(value: int) -> int:
 def scan_function(image: GuestImage, start: int, lines: list[str]) -> list[ShortTable]:
     labels = {start} | {int(match.group(1), 16) for line in lines if (match := LABEL.match(line))}
     register_values: dict[str, int] = {}
+    # Slot count implied by the last unsigned bounds check on each register. Codegen caps a
+    # table at max_jump_table_entries (512), and the targets past the cap never become labels.
+    compare_bounds: dict[str, int] = {}
     block_address = start
     instructions_in_block = 0
     table_base_register = None
@@ -50,6 +53,8 @@ def scan_function(image: GuestImage, start: int, lines: list[str]) -> list[Short
             elif mnemonic == "addi" and len(operands) == 3 and operands[0] == operands[1] \
                     and operands[1] in register_values:
                 register_values[operands[0]] = (register_values[operands[1]] + int(operands[2])) & 0xFFFFFFFF
+            elif mnemonic == "cmplwi" and len(operands) == 3 and operands[2].isdigit():
+                compare_bounds[operands[1]] = int(operands[2]) + 1
             elif mnemonic == "lwzx" and len(operands) == 3:
                 table_base_register = operands[1]
             instructions_in_block += 1
@@ -61,10 +66,15 @@ def scan_function(image: GuestImage, start: int, lines: list[str]) -> list[Short
                 if CASE.match(lines[index]):
                     cases += 1
             table = register_values.get(table_base_register)
-            if table is not None and image.word(table + 4 * cases) in labels:
-                slots = cases
+            slots = cases
+            if table is not None:
                 while slots < MAX_TABLE_SLOTS and image.word(table + 4 * slots) in labels:
                     slots += 1
+                bound = min(compare_bounds.get(f"r{match.group(1)}", 0), MAX_TABLE_SLOTS)
+                if bound > slots and all(image.is_code_address(image.word(table + 4 * slot))
+                                         for slot in range(slots, bound)):
+                    slots = bound
+            if slots > cases:
                 found.append(ShortTable(start, bctr, int(match.group(1)), table, cases,
                                         [image.word(table + 4 * slot) for slot in range(slots)]))
         index += 1
