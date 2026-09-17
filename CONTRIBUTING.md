@@ -232,6 +232,31 @@ RECOMP_DUMP_IMAGE=<FOLDER>/out/image_dump_Loader_DLL.bin RECOMP_DUMP_MODULE=Load
 python framework/scripts/analysis/find_missing_functions.py --game <FOLDER> --module Loader_DLL --write
 ```
 
+## Issues
+
+Work that is not being done right now lives in an issue, so a person or an agent
+can pick it up without the context that produced it. The three repositories use
+the same labels:
+
+| Label | Means |
+| --- | --- |
+| `area: codegen` / `renderer` / `tooling` / `kernel` / `docs` | Which part of the stack |
+| `type: bug` / `feature` / `research` | Whether something is wrong, missing, or unknown |
+| `effort: hours` / `days` / `weeks` | Rough size, from having done comparable work |
+| `ready` | Self-contained: the issue carries the addresses, commands and file paths needed to start |
+| `blocked` | Waiting on other issues, which the issue names |
+| `needs a game` | Cannot be finished without the disc and a play test |
+| `epic` | A tracking issue holding the order of work for a group |
+
+An issue worth picking up says what happened (with the log line or address), what
+to do, and how its author will know it is done. It ends with a "How this fits"
+block naming its epic, what it blocks and what blocks it - an agent landing on one
+issue can then see the order without reading the others.
+
+Cross-repository work is normal here: the SDK, the framework and a game repository
+each hold part of it. Link across with full URLs, and keep the order of work in one
+epic rather than in each issue.
+
 ## Code style
 
 - C++23, formatted with the repository's `.clang-format` (Google-based, 100
