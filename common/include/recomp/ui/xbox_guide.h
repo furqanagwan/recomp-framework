@@ -20,11 +20,13 @@ class ImGuiDrawer;
 namespace recomp {
 
 class GuideDialog;
+class MessageBoxDialog;
 class VirtualKeyboardDialog;
 
 // The Xbox 360 compatibility Guide: the shell between the host and the
 // recompiled game, in the place the console's dashboard Guide occupies. It also
-// answers a title's XamShowKeyboardUI with its on-screen keyboard.
+// answers a title's XamShowKeyboardUI with its on-screen keyboard and
+// XamShowMessageBoxUI with its message box.
 //
 // Two routes open the guide and both end here:
 //   - the player pressing View + Menu on a controller, and
@@ -65,6 +67,7 @@ class XboxGuide {
   void Toggle();
   bool IsOpen() const { return menu_ != nullptr; }
   bool IsKeyboardOpen() const { return keyboard_ != nullptr; }
+  bool IsMessageBoxOpen() const { return message_box_ != nullptr; }
 
   // The screen a game asked for. Anything the guide has no screen of its own
   // for opens the guide, which is what a console shows for most of them.
@@ -74,11 +77,17 @@ class XboxGuide {
   void ScheduleDebugOpen();
   void ShowKeyboard(const rex::kernel::xam::KeyboardUiRequest& request,
                     rex::kernel::xam::KeyboardUiResult done);
+  void ShowMessageBox(const rex::kernel::xam::MessageBoxUiRequest& request,
+                      rex::kernel::xam::MessageBoxUiResult done);
+  // A title's keyboard or message box is up: they take the controller, and a
+  // console shows one at a time.
+  bool TitleDialogOpen() const { return keyboard_ || message_box_; }
 
   rex::ui::ImGuiDrawer* drawer_ = nullptr;
   Actions actions_;
   GuideDialog* menu_ = nullptr;
   VirtualKeyboardDialog* keyboard_ = nullptr;
+  MessageBoxDialog* message_box_ = nullptr;
   bool system_ui_active_ = false;
 };
 

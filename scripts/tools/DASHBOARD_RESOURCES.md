@@ -116,6 +116,34 @@ rexglue resources '$SystemUpdate/Dash.Search.xex' -o 'work/dash.search'
   green caret every 30 frames.
 - The only timeline in `KeyboardBase` is the Japanese kana flick menu.
 
+## Guide skin, fonts and message boxes (17559 system update)
+
+More of the framework's system screens draw from full executables in the same
+update. Extract each with `rexglue resources` and copy the named packages to
+`resources/guide`:
+
+| Executable | Package | Used for |
+| --- | --- | --- |
+| `dash.ClosedCaptionDll.xex` | `ccfonts` | `segoer.ttf`, "Segoe Xbox Regular": the guide, keyboard and message box type, ahead of Windows Segoe UI. `XenonSCLatin.xtt`, the console's UI font, is encrypted |
+| `Guide.AccountRecovery.xex` | `shdmedia` | `btn_focusG.xma`, `btn_selectG.xma`, `btn_backG.xma`: the guide apps' own focus, select and back sounds |
+| `dash.xex` | `memory` | `ico_64x_warning.png` for error, warning and alert message boxes |
+| (any dashboard) | `shrdres.xzp` | `A-`, `B-`, `X-`, `Y-Button_32.png`: the legend buttons |
+
+`shdmedia`'s `skin.xur` is the guide apps' skin, and supplies the numbers the
+screens use even without its files:
+
+- `legend_A` to `legend_Y`: the `<letter>-Button_32.png` disc (flat, about 22 of
+  its 32 pixels) with the letter drawn over it in #F5F5F5 with a #2E000000
+  shadow, beside an 18 point #EBEBEB label. Without the pictures the discs are
+  drawn in their sampled colours: A #6CB733, B #B12B36, X #3064A1, Y #E0B41C.
+- `TransOpen` fades a scene in over 10 frames and `TransFrom` out over 15, both
+  linear, at 60 frames a second.
+- `Label_Head` is 12 point #EBFFFFFF, `Label_Body` 16 point #0F1214, and
+  `TwoThirdsPane` fills with #EBEBEB.
+
+XAM's own message box scene is in `xam.xex`, which the update only patches, so
+the message box follows this skin rather than a scene of its own.
+
 ## Validation
 
 ```powershell

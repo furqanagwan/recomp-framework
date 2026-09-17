@@ -7,6 +7,7 @@
 #include <rex/logging.h>
 
 #include "recomp/ui/guide_dialog.h"
+#include "recomp/ui/message_box_dialog.h"
 #include "recomp/ui/virtual_keyboard_dialog.h"
 
 REXCVAR_DEFINE_DOUBLE(recomp_guide_open_after_seconds, 0.0, "Recomp",
@@ -24,6 +25,11 @@ REXCVAR_DEFINE_DOUBLE(recomp_keyboard_open_after_seconds, 0.0, "Recomp",
                       "Open the on-screen keyboard this many seconds after the game starts, "
                       "as if the title had asked for a name. For screenshots in scripted runs. "
                       "0 disables it.")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+
+REXCVAR_DEFINE_DOUBLE(recomp_message_box_open_after_seconds, 0.0, "Recomp",
+                      "Open a message box this many seconds after the game starts, as if the "
+                      "title had shown one. For screenshots in scripted runs. 0 disables it.")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace recomp {
@@ -52,13 +58,21 @@ void XboxGuide::Install(rex::ui::ImGuiDrawer* drawer, Actions actions) {
         actions_.on_ui_thread([this, request, done] { ShowKeyboard(request, done); });
         return true;
       });
+  rex::kernel::xam::SetMessageBoxUiHandler(
+      [this](const rex::kernel::xam::MessageBoxUiRequest& request,
+             rex::kernel::xam::MessageBoxUiResult done) {
+        if (!actions_.on_ui_thread) {
+          return false;
+        }
+        actions_.on_ui_thread([this, request, done] { ShowMessageBox(request, done); });
+        return true;
+      });
   ScheduleDebugOpen();
 }
 
 void XboxGuide::ShowKeyboard(const rex::kernel::xam::KeyboardUiRequest& request,
                              rex::kernel::xam::KeyboardUiResult done) {
-  if (keyboard_ || !drawer_) {
-    // A console shows one keyboard at a time.
+  if (TitleDialogOpen() || !drawer_) {
     done(std::nullopt);
     return;
   }
@@ -93,6 +107,25 @@ void XboxGuide::ScheduleDebugOpen() {
     }).detach();
   }
 
+  const double message_box_seconds = REXCVAR_GET(recomp_message_box_open_after_seconds);
+  if (message_box_seconds > 0.0 && actions_.on_ui_thread) {
+    std::thread([this, message_box_seconds] {
+      std::this_thread::sleep_for(std::chrono::duration<double>(message_box_seconds));
+      rex::kernel::xam::MessageBoxUiRequest request;
+      request.title = u"Storage Device Removed";
+      request.text = u"The storage device you were using has been removed. Your progress "
+                     u"since the last save will not be kept.";
+      request.buttons = {u"Continue Without Saving", u"Select Storage Device"};
+      request.icon = rex::kernel::xam::MessageBoxUiRequest::Icon::kWarning;
+      actions_.on_ui_thread([this, request] {
+        ShowMessageBox(request, [](std::optional<uint32_t> button) {
+          REXLOG_INFO("Message box: recomp_message_box_open_after_seconds {}",
+                      button ? "answered" : "cancelled");
+        });
+      });
+    }).detach();
+  }
+
   const double seconds = REXCVAR_GET(recomp_guide_open_after_seconds);
   if (seconds <= 0.0 || !actions_.on_ui_thread) {
     return;
@@ -112,9 +145,26 @@ void XboxGuide::ScheduleDebugOpen() {
   }).detach();
 }
 
+void XboxGuide::ShowMessageBox(const rex::kernel::xam::MessageBoxUiRequest& request,
+                               rex::kernel::xam::MessageBoxUiResult done) {
+  if (TitleDialogOpen() || !drawer_) {
+    done(std::nullopt);
+    return;
+  }
+  Close();
+  REXLOG_INFO("Message box: opening for user {} ({} buttons)", request.user_index,
+              request.buttons.size());
+  message_box_ = new MessageBoxDialog(drawer_, request,
+                                      [this, done](std::optional<uint32_t> button) {
+                                        message_box_ = nullptr;
+                                        done(button);
+                                      });
+}
+
 void XboxGuide::Uninstall() {
   rex::kernel::xam::SetSystemUiHandler(nullptr);
   rex::kernel::xam::SetKeyboardUiHandler(nullptr);
+  rex::kernel::xam::SetMessageBoxUiHandler(nullptr);
   if (system_ui_active_) {
     rex::kernel::xam::SetSystemUiActive(false);
     system_ui_active_ = false;
@@ -127,9 +177,9 @@ void XboxGuide::Open(std::string_view reason) {
   if (menu_ || !drawer_) {
     return;
   }
-  if (keyboard_) {
-    // The keyboard owns the controller until the player finishes typing.
-    REXLOG_INFO("Guide: not opening for {} while the keyboard is up", reason);
+  if (TitleDialogOpen()) {
+    // The title's keyboard or message box owns the controller until it is answered.
+    REXLOG_INFO("Guide: not opening for {} while the title's dialog is up", reason);
     return;
   }
   REXLOG_INFO("Guide: opening for {}", reason);
