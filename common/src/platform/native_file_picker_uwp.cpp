@@ -36,6 +36,24 @@ winrt::fire_and_forget ShowDiscImagePicker(NativeFilePicker::PickedHandler on_pi
   on_picked(std::move(disc_image));
 }
 
+winrt::fire_and_forget ShowContentPackagePicker(NativeFilePicker::PickedHandler on_picked) {
+  std::optional<std::filesystem::path> package;
+  try {
+    FileOpenPicker picker;
+    picker.ViewMode(PickerViewMode::List);
+    picker.SuggestedStartLocation(PickerLocationId::ComputerFolder);
+    picker.FileTypeFilter().Append(L"*");
+    auto file = co_await picker.PickSingleFileAsync();
+    if (file) {
+      StorageApplicationPermissions::FutureAccessList().Add(file);
+      package = std::filesystem::path(std::wstring_view(file.Path()));
+    }
+  } catch (const winrt::hresult_error&) {
+    package.reset();
+  }
+  on_picked(std::move(package));
+}
+
 }  // namespace
 
 bool NativeFilePicker::IsAvailable() {
@@ -46,6 +64,12 @@ void NativeFilePicker::PickDiscImage(const std::string& title, PickedHandler on_
   (void)title;
   (void)owner_window_;
   ShowDiscImagePicker(std::move(on_picked));
+}
+
+void NativeFilePicker::PickContentPackage(const std::string& title, PickedHandler on_picked) const {
+  (void)title;
+  (void)owner_window_;
+  ShowContentPackagePicker(std::move(on_picked));
 }
 
 }  // namespace recomp

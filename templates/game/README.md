@@ -42,6 +42,7 @@ Region list from [Redump](http://redump.org/discs/system/xbox360/).
 | Title ID | `TODO` |
 | Media ID | `TODO` |
 | Executable version | TODO |
+| Title update | None (disc executable) |
 | Languages | TODO |
 | Contents | TODO files, TODO bytes |
 | Executable | `default.xex`, TODO bytes |
@@ -78,6 +79,7 @@ Keep this table in step with `release.json`.
 | Storage | TODO GB, plus room for the ISO while it is copied |
 | Software | [Microsoft Visual C++ Redistributable 2015-2022 (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
 | Game | Your own @DISPLAY_NAME@ Xbox 360 disc image |
+| Title update | Not required by this disc build |
 
 ## Build from source
 

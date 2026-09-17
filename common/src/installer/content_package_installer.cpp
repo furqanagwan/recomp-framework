@@ -66,10 +66,9 @@ bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& packag
     return false;
   }
   if (content_type == XContentType::kInstaller) {
-    REXLOG_WARN(
-        "DLC: skipping {}: title updates change game code and need a recompile from the "
-        "updated default.xex",
-        file_name);
+    REXLOG_WARN("DLC: skipping {}: title updates are installed before startup by an "
+                "update-targeted build",
+                file_name);
     return false;
   }
   if (content_type != XContentType::kMarketplaceContent) {

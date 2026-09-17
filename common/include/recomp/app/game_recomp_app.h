@@ -38,6 +38,10 @@ class GameRecompApp : public rex::ReXApp {
 
  private:
   bool InstallFromEnvironment(const std::filesystem::path& game_root);
+  std::optional<rex::PathConfig> FinalizeTitleUpdatePaths(
+      rex::PathConfig paths, std::function<void(rex::PathConfig)> resume);
+  bool HasUnexpectedCodePatch(const std::filesystem::path& game_root,
+                              std::filesystem::path& patch) const;
   void InstallContentPackages();
   void ToggleSystemMenu();
 

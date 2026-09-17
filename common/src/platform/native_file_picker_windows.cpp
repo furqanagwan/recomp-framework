@@ -34,4 +34,22 @@ void NativeFilePicker::PickDiscImage(const std::string& title, PickedHandler on_
   on_picked(std::filesystem::path(selected));
 }
 
+void NativeFilePicker::PickContentPackage(const std::string& title, PickedHandler on_picked) const {
+  wchar_t selected[4096] = L"";
+  std::wstring wide_title(title.begin(), title.end());
+  OPENFILENAMEW dialog{};
+  dialog.lStructSize = sizeof(dialog);
+  dialog.hwndOwner = static_cast<HWND>(owner_window_);
+  dialog.lpstrFilter = L"Xbox 360 title update package\0*.*\0";
+  dialog.lpstrFile = selected;
+  dialog.nMaxFile = static_cast<DWORD>(std::size(selected));
+  dialog.lpstrTitle = wide_title.c_str();
+  dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+  if (!GetOpenFileNameW(&dialog)) {
+    on_picked(std::nullopt);
+    return;
+  }
+  on_picked(std::filesystem::path(selected));
+}
+
 }  // namespace recomp

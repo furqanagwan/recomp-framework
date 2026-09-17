@@ -1,5 +1,6 @@
 {
   "supported_disc": "@DISPLAY_NAME@ (TODO region), title ID TODO",
+  "required_title_update": null,
   "publisher": "@PUBLISHER@",
   "system_requirements": [
     "OS: Windows 10 version 2004 (build 19041) or Windows 11, 64-bit",

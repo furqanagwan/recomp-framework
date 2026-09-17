@@ -22,6 +22,7 @@ add_library(recomp_common STATIC
     src/input/imgui_gamepad_bridge.cpp
     src/installer/content_package_installer.cpp
     src/installer/disc_image_installer.cpp
+    src/installer/title_update_installer.cpp
     src/kernel/usb_camera_stubs.cpp
     src/platform/gaming_runtime_session.cpp
     src/settings/user_settings_store.cpp
@@ -29,6 +30,7 @@ add_library(recomp_common STATIC
     src/ui/disc_install_dialog.cpp
     src/ui/monochrome_theme.cpp
     src/ui/settings_dialog.cpp
+    src/ui/title_update_dialog.cpp
     src/ui/guide_dialog.cpp
     src/ui/guide_blades.cpp
     src/ui/achievement_popup.cpp

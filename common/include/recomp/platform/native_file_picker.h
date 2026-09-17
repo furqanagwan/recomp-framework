@@ -15,6 +15,7 @@ class NativeFilePicker {
 
   static bool IsAvailable();
   void PickDiscImage(const std::string& title, PickedHandler on_picked) const;
+  void PickContentPackage(const std::string& title, PickedHandler on_picked) const;
 
  private:
   void* owner_window_;

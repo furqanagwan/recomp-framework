@@ -23,7 +23,7 @@ std::string QuoteForShell(const std::string& text) {
   return quoted + "'";
 }
 
-std::vector<std::string> PickerCommands(const std::string& title) {
+std::vector<std::string> PickerCommands(const std::string& title, bool disc_image) {
 #if defined(__APPLE__)
   return {"osascript -e " +
           QuoteForShell("POSIX path of (choose file with prompt \"" + title + "\")")};
@@ -31,11 +31,11 @@ std::vector<std::string> PickerCommands(const std::string& title) {
   std::vector<std::string> commands;
   if (CommandExists("zenity")) {
     commands.push_back("zenity --file-selection --title=" + QuoteForShell(title) +
-                       " --file-filter='Xbox 360 disc image | *.iso *.ISO'");
+                       (disc_image ? " --file-filter='Xbox 360 disc image | *.iso *.ISO'" : ""));
   }
   if (CommandExists("kdialog")) {
-    commands.push_back("kdialog --title " + QuoteForShell(title) +
-                       " --getopenfilename ~ '*.iso *.ISO'");
+    commands.push_back("kdialog --title " + QuoteForShell(title) + " --getopenfilename ~ " +
+                       (disc_image ? "'*.iso *.ISO'" : "'*'"));
   }
   return commands;
 #endif
@@ -71,7 +71,17 @@ bool NativeFilePicker::IsAvailable() {
 }
 
 void NativeFilePicker::PickDiscImage(const std::string& title, PickedHandler on_picked) const {
-  for (const auto& command : PickerCommands(title)) {
+  for (const auto& command : PickerCommands(title, true)) {
+    if (auto selected = RunAndReadFirstLine(command)) {
+      on_picked(std::filesystem::path(*selected));
+      return;
+    }
+  }
+  on_picked(std::nullopt);
+}
+
+void NativeFilePicker::PickContentPackage(const std::string& title, PickedHandler on_picked) const {
+  for (const auto& command : PickerCommands(title, false)) {
     if (auto selected = RunAndReadFirstLine(command)) {
       on_picked(std::filesystem::path(*selected));
       return;

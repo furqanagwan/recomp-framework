@@ -121,6 +121,32 @@ Other codegen overrides (`switch_tables`, `midasm_hook`, `indirect_calls`,
 `invalid_instructions`, `rexcrt`) follow `rex::codegen::RecompilerConfig`; add a
 TOML file under `config/` and list it in the manifest `includes`.
 
+### Title updates
+
+Title updates remain optional at the platform level. A particular recompilation
+build targets either the original disc executable or one exact update, because
+updated machine code cannot be mixed with code generated from the disc XEX.
+
+For a disc build, leave `patched_file_path` out of the codegen manifest and
+leave `GameDescriptor::title_update` empty. The runtime does not apply adjacent
+`.xexp` files in this mode and refuses a game folder containing one.
+
+For an update build:
+
+1. Extract the update package to a private staging folder. Put an unmodified
+   copy of each base XEX beside its matching `.xexp` in that folder.
+2. Add `patched_file_path` to the entrypoint and every patched module in the
+   codegen manifest. Codegen loads the staged XEX and applies its adjacent patch.
+3. Fill `GameDescriptor::title_update` with the update label, title ID, media ID,
+   version, and the size and lowercase XXH3-128 digest of every required `.xexp`.
+4. Record the same update in the game's README and `release.json`.
+
+On first launch, that build asks the player for their title update package (or
+uses `RECOMP_INSTALL_TU`). It verifies the package and code-patch digests, then
+extracts its code and data files under the user-data folder. Updated files are
+served over the disc files, while files absent from the update fall back to the
+disc. Update packages and extracted contents must never be committed or shipped.
+
 ## Debugging rendering
 
 The SDK has cvars for rendering bugs that work in release builds; pass them with
