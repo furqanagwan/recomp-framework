@@ -13,13 +13,15 @@ namespace {
 
 constexpr float kStickDeadzone = 8000.0f;
 constexpr float kStickMaximum = 32767.0f;
+// XINPUT_GAMEPAD_TRIGGER_THRESHOLD.
+constexpr uint8_t kTriggerThreshold = 30;
 
 struct ButtonMapping {
   ImGuiKey key;
   uint16_t button;
 };
 
-constexpr std::array<ButtonMapping, 10> kButtonMappings = {{
+constexpr std::array<ButtonMapping, 13> kButtonMappings = {{
     {ImGuiKey_GamepadDpadUp, rex::input::X_INPUT_GAMEPAD_DPAD_UP},
     {ImGuiKey_GamepadDpadDown, rex::input::X_INPUT_GAMEPAD_DPAD_DOWN},
     {ImGuiKey_GamepadDpadLeft, rex::input::X_INPUT_GAMEPAD_DPAD_LEFT},
@@ -30,6 +32,9 @@ constexpr std::array<ButtonMapping, 10> kButtonMappings = {{
     {ImGuiKey_GamepadFaceUp, rex::input::X_INPUT_GAMEPAD_Y},
     {ImGuiKey_GamepadL1, rex::input::X_INPUT_GAMEPAD_LEFT_SHOULDER},
     {ImGuiKey_GamepadR1, rex::input::X_INPUT_GAMEPAD_RIGHT_SHOULDER},
+    {ImGuiKey_GamepadStart, rex::input::X_INPUT_GAMEPAD_START},
+    {ImGuiKey_GamepadBack, rex::input::X_INPUT_GAMEPAD_BACK},
+    {ImGuiKey_GamepadL3, rex::input::X_INPUT_GAMEPAD_LEFT_THUMB},
 }};
 
 float NormalizedStickTravel(float value) {
@@ -59,6 +64,10 @@ void ImGuiGamepadBridge::FeedPrimaryController(ImGuiIO& io) {
                 int16_t(gamepad.thumb_lx));
   FeedStickAxis(io, ImGuiKey_GamepadLStickDown, ImGuiKey_GamepadLStickUp,
                 int16_t(gamepad.thumb_ly));
+  io.AddKeyAnalogEvent(ImGuiKey_GamepadL2, gamepad.left_trigger > kTriggerThreshold,
+                       gamepad.left_trigger / 255.0f);
+  io.AddKeyAnalogEvent(ImGuiKey_GamepadR2, gamepad.right_trigger > kTriggerThreshold,
+                       gamepad.right_trigger / 255.0f);
 }
 
 }  // namespace recomp
