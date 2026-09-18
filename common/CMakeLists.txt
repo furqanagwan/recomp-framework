@@ -27,6 +27,7 @@ add_library(recomp_common STATIC
     src/kernel/usb_camera_stubs.cpp
     src/memory/safe_guest_read.cpp
     src/platform/gaming_runtime_session.cpp
+    src/render/native_renderer.cpp
     src/settings/user_settings_store.cpp
     src/ui/dialog_layout.cpp
     src/ui/disc_install_dialog.cpp
@@ -73,6 +74,11 @@ if(RECOMP_BUILD_TESTS)
     add_executable(recomp_safe_guest_read_test tests/safe_guest_read_test.cpp)
     target_link_libraries(recomp_safe_guest_read_test PRIVATE recomp::common)
     add_test(NAME recomp.safe_guest_read COMMAND recomp_safe_guest_read_test)
+    add_executable(recomp_native_renderer_test tests/native_renderer_test.cpp)
+    target_link_libraries(recomp_native_renderer_test PRIVATE recomp::common)
+    add_test(NAME recomp.native_renderer_fallback COMMAND recomp_native_renderer_test)
+    add_test(NAME recomp.native_renderer_exception_fallback
+             COMMAND recomp_native_renderer_test exception)
 endif()
 
 if(TARGET imgui)

@@ -4,6 +4,7 @@
 
 #include <rex/cvar.h>
 #include "recomp/settings/user_settings_store.h"
+#include "recomp/render/native_renderer.h"
 #include "guide_theme.h"
 
 namespace recomp {
@@ -58,6 +59,11 @@ void GuideDialog::BuildSettings() {
 #endif
          "Fast render targets can leave some scenes black after pausing."},
     };
+    if (NativeRenderer::IsAvailable()) {
+      setting_rows_.push_back(
+          {"Native renderer", "recomp_native_renderer_enabled", toggle,
+           "F8 also switches between native and emulated rendering while playing."});
+    }
   }
   setting_rows_.push_back({"Save settings", "", {}, "Save these settings for the next launch."});
 }
@@ -85,6 +91,9 @@ void GuideDialog::ChangeSetting(int direction) {
                                               : static_cast<int>(found - row.choices.begin());
   const std::string& value = row.choices[static_cast<size_t>((index + direction + count) % count)].first;
   rex::cvar::SetFlagByName(row.cvar, value);
+  if (row.cvar == "recomp_native_renderer_enabled") {
+    NativeRenderer::SetEnabled(value == "true");
+  }
   // The runtime only reports the Guide button while its pass-through is on, so
   // opening the guide with it needs both.
   if (row.cvar == "recomp_guide_button_opens_guide") {

@@ -29,3 +29,24 @@ read after a failure.
 Use `recomp_add_shaders` to embed HLSL and committed SPIR-V without adding DXC
 to ordinary player builds. See the shader section in `CONTRIBUTING.md` for the
 CMake call and regeneration command.
+
+## Live control and fallback
+
+Register a game renderer through `recomp/render/native_renderer.h`. The
+framework then supplies the guide setting, the F8 toggle, and the on-screen
+`NATIVE` indicator:
+
+```cpp
+recomp::NativeRenderer::Register("Skate 3 renderer", RenderFrame, renderer_state);
+```
+
+Returning `false` or throwing from `RenderFrame` immediately restores emulated
+rendering and disables the native renderer for the rest of the session. A
+renderer must therefore return `true` after every frame it accepts. Use the
+safe guest-memory helpers above for expected streaming races rather than
+allowing an access fault to escape.
+
+For testing without a game renderer, start with
+`--recomp_native_render_probe --recomp_native_render_probe_fail_frame=120`.
+The cycling colour should switch back to the emulated game once, log the reason,
+and remain there. The indicator is drawn only after a native frame succeeds.

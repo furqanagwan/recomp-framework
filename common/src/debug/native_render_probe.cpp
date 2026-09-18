@@ -8,10 +8,18 @@
 #include <rex/graphics/native_rhi.h>
 #include <rex/logging.h>
 
+#include "recomp/render/native_renderer.h"
+
 REXCVAR_DEFINE_BOOL(recomp_native_render_probe, false, "Recomp",
                     "Replace the game's frames with a colour cycle drawn through the native "
                     "renderer interface, to check that path works on this machine.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_INT32(recomp_native_render_probe_fail_frame, -1, "Recomp",
+                     "Make the native render probe fail on this zero-based frame, to test "
+                     "automatic fallback. -1 disables the deliberate failure.")
+    .range(-1, 1000000)
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace recomp {
 namespace {
@@ -25,6 +33,10 @@ bool RenderProbeFrame(const rex::graphics::NativeGuestOutputRenderContext& conte
     return false;
   }
   const uint64_t frame = g_frames.fetch_add(1, std::memory_order_relaxed);
+  if (REXCVAR_GET(recomp_native_render_probe_fail_frame) == static_cast<int32_t>(frame)) {
+    REXLOG_INFO("native render probe: deliberately failing frame {}", frame);
+    return false;
+  }
   if (frame == 0) {
     REXLOG_INFO("native render probe: first frame {}x{} on {}", context.guest_output_width,
                 context.guest_output_height,
@@ -56,7 +68,7 @@ void NativeRenderProbe::InstallIfRequested() {
     return;
   }
   REXLOG_INFO("native render probe: enabled");
-  rex::graphics::SetNativeGuestOutputRenderer(RenderProbeFrame, nullptr);
+  NativeRenderer::Register("native render probe", RenderProbeFrame, nullptr);
 }
 
 }  // namespace recomp

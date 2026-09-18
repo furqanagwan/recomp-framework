@@ -28,6 +28,7 @@
 #include "recomp/ui/settings_dialog.h"
 #include "recomp/ui/title_update_dialog.h"
 #include "recomp/platform/application_restart.h"
+#include "recomp/render/native_renderer.h"
 #include "recomp/ui/update_required_dialog.h"
 #include "recomp/ui/xbox_guide.h"
 #include "recomp/ui/achievement_popup.h"
@@ -230,6 +231,7 @@ void GameRecompApp::OnPostLoadXexImage() {
 }
 
 void GameRecompApp::OnPostSetup() {
+  NativeRenderer::Install(imgui_drawer());
   NativeRenderProbe::InstallIfRequested();
   guide_.Install(imgui_drawer(),
                  XboxGuide::Actions{
@@ -250,12 +252,12 @@ void GameRecompApp::OnPostSetup() {
                              game_window->RequestClose();
                            }
                          },
+                     .achievements = &achievements(),
+                     .runtime = runtime(),
                      .on_ui_thread =
                          [this](std::function<void()> work) {
                            app_context().CallInUIThreadDeferred(std::move(work));
                          },
-                     .achievements = &achievements(),
-                     .runtime = runtime(),
                  });
   menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
                       &app_context(), [this] { guide_.Open("View + Menu"); });
@@ -284,6 +286,7 @@ GameRecompApp::CreateAchievementNotificationDialog() {
 }
 
 void GameRecompApp::OnShutdown() {
+  NativeRenderer::Shutdown();
   guide_.Uninstall();
   menu_watcher_.Stop();
   gaming_runtime_.End();

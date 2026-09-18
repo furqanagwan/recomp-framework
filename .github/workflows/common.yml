@@ -41,10 +41,12 @@ jobs:
           -DREXSDK_DIR=${{ github.workspace }}/thirdparty/rexglue-sdk
 
       - name: Build
-        run: cmake --build build --target recomp_safe_guest_read_test
+        run: >
+          cmake --build build --target
+          recomp_safe_guest_read_test recomp_native_renderer_test
 
       - name: Test
-        run: ctest --test-dir build -R recomp.safe_guest_read --output-on-failure
+        run: ctest --test-dir build -R "recomp\\.(safe_guest_read|native_renderer)" --output-on-failure
 
   macos:
     if: github.event_name == 'workflow_dispatch' && inputs.macos
@@ -68,7 +70,9 @@ jobs:
           -DREXSDK_DIR=${{ github.workspace }}/thirdparty/rexglue-sdk
 
       - name: Build
-        run: cmake --build build --target recomp_safe_guest_read_test
+        run: >
+          cmake --build build --target
+          recomp_safe_guest_read_test recomp_native_renderer_test
 
       - name: Test
-        run: ctest --test-dir build -R recomp.safe_guest_read --output-on-failure
+        run: ctest --test-dir build -R "recomp\\.(safe_guest_read|native_renderer)" --output-on-failure

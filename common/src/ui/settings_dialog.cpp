@@ -12,6 +12,7 @@
 #include "recomp/input/controller_menu_watcher.h"
 #include "recomp/input/imgui_gamepad_bridge.h"
 #include "recomp/settings/user_settings_store.h"
+#include "recomp/render/native_renderer.h"
 #include "recomp/ui/dialog_layout.h"
 #include "recomp/ui/guide_fonts.h"
 #include "guide_theme.h"
@@ -156,6 +157,14 @@ void SettingsDialog::DrawVideoTab() {
   ComboForCvar("Render targets", "render_target_path_vulkan", kVulkanRenderTargets);
 #endif
   ImGui::TextDisabled("Fast render targets can leave some scenes black after pausing.");
+  if (NativeRenderer::IsAvailable()) {
+    bool enabled = NativeRenderer::IsEnabled();
+    if (ImGui::Checkbox("Native renderer", &enabled)) {
+      NativeRenderer::SetEnabled(enabled);
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("(F8 toggles while playing)");
+  }
 }
 
 void SettingsDialog::DrawControlsTab() {
