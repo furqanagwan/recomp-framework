@@ -23,6 +23,7 @@ add_library(recomp_common STATIC
     src/installer/content_package_installer.cpp
     src/installer/disc_image_installer.cpp
     src/installer/title_update_installer.cpp
+    src/installer/xboxunity_catalog.cpp
     src/kernel/usb_camera_stubs.cpp
     src/platform/gaming_runtime_session.cpp
     src/settings/user_settings_store.cpp
@@ -31,6 +32,7 @@ add_library(recomp_common STATIC
     src/ui/monochrome_theme.cpp
     src/ui/settings_dialog.cpp
     src/ui/title_update_dialog.cpp
+    src/ui/update_required_dialog.cpp
     src/ui/guide_dialog.cpp
     src/ui/guide_blades.cpp
     src/ui/achievement_popup.cpp
@@ -44,13 +46,16 @@ add_library(recomp_common STATIC
 )
 
 if(REXGLUE_PLATFORM_UWP)
-    target_sources(recomp_common PRIVATE src/platform/native_file_picker_uwp.cpp)
+    target_sources(recomp_common PRIVATE src/platform/native_file_picker_uwp.cpp
+                                         src/platform/http_download_windows.cpp)
     rexglue_uwp_cppwinrt_include_dir(recomp_cppwinrt_include_dir)
     target_include_directories(recomp_common SYSTEM PRIVATE "${recomp_cppwinrt_include_dir}")
 elseif(WIN32)
-    target_sources(recomp_common PRIVATE src/platform/native_file_picker_windows.cpp)
+    target_sources(recomp_common PRIVATE src/platform/native_file_picker_windows.cpp
+                                         src/platform/http_download_windows.cpp)
 else()
-    target_sources(recomp_common PRIVATE src/platform/native_file_picker_unix.cpp)
+    target_sources(recomp_common PRIVATE src/platform/native_file_picker_unix.cpp
+                                         src/platform/http_download_unix.cpp)
 endif()
 
 add_library(recomp::common ALIAS recomp_common)

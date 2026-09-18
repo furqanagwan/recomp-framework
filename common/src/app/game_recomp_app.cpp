@@ -27,6 +27,7 @@
 #include "recomp/ui/monochrome_theme.h"
 #include "recomp/ui/settings_dialog.h"
 #include "recomp/ui/title_update_dialog.h"
+#include "recomp/ui/update_required_dialog.h"
 #include "recomp/ui/xbox_guide.h"
 #include "recomp/ui/achievement_popup.h"
 #include "recomp/ui/guide_fonts.h"
@@ -171,15 +172,22 @@ std::optional<rex::PathConfig> GameRecompApp::FinalizeTitleUpdatePaths(
     return paths;
   }
 
-  TitleUpdateDialog::Show(
+  // The console asked before it updated a game, and took no for an answer. This
+  // build is recompiled from the update's code, so there is nothing to fall back
+  // to inside it; a release that also ships the disc-compiled executable sets
+  // can_play_without_update and the launcher starts that one instead.
+  UpdateRequiredDialog::Show(
       imgui_drawer(), app_context(),
-      TitleUpdateInstallRequest{
+      UpdateRequiredRequest{
           .game_display_name = descriptor_.display_name,
           .descriptor = update,
           .install_folder = paths.update_data_root,
+          .download_folder = paths_.user_data_root() / "downloads",
           .owner_window = window() ? window()->GetNativeWindowHandle() : nullptr,
+          .can_play_without_update = false,
           .on_installed = [paths,
                            resume = std::move(resume)]() mutable { resume(std::move(paths)); },
+          .on_declined = [this] { app_context().QuitFromUIThread(); },
           .on_quit = [this] { app_context().QuitFromUIThread(); },
       });
   return std::nullopt;
