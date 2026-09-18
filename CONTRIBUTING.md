@@ -212,6 +212,46 @@ camera) and which change per draw (that object's own transform). A program whose
 vertex shader reads no transform constants and fetches no textures is interface
 or overlay geometry, not the world.
 
+### Embedding native-renderer shaders
+
+List a game's shaders once after `recomp_add_game`. The stage is inferred from
+the required `.vs.hlsl`, `.ps.hlsl`, or `.cs.hlsl` suffix, and the entry point
+defaults to `main`:
+
+```cmake
+recomp_add_shaders(skate_3
+    SOURCES
+        shaders/scene.vs.hlsl
+        shaders/scene.ps.hlsl
+    INCLUDE_DIRS shaders/include
+)
+```
+
+The normal build needs no shader compiler. It recursively expands quoted HLSL
+includes and generates `<target>_shaders.h` in the target's include path. Each
+shader is an `EmbeddedShader` containing `hlsl` as a `std::string_view`, `spirv`
+as a `std::span<const uint32_t>`, and `entry_point`. The identifier is the source
+path converted to a C++ identifier. For example:
+
+```cpp
+#include "skate_3_shaders.h"
+
+using namespace recomp::shaders::skate_3;
+const auto& shader = shaders_scene_vs_hlsl;
+```
+
+Vulkan bytecode lives beside its source: `scene.vs.hlsl` uses the committed
+`scene.vs.spv`. After changing HLSL, regenerate it explicitly and commit it:
+
+```powershell
+cmake --build out/build/win-amd64-release --target skate_3_spirv
+```
+
+That maintenance target looks for `dxc` on `PATH`. Set
+`RECOMP_DXC_EXECUTABLE` at configure time when it is elsewhere. Editing an
+HLSL file or any `.hlsli` below an include directory regenerates the embedded
+header on the next ordinary build.
+
 ### Games with DLL modules
 
 Some games keep their code in guest DLLs (Top Spin 4: `Loader_DLL.xex`,

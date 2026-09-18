@@ -3,6 +3,7 @@ include_guard(GLOBAL)
 # A plain variable, not a cache entry, so a build folder configured before the
 # framework moved picks up its new location.
 set(RECOMP_ROOT "${CMAKE_CURRENT_LIST_DIR}/..")
+include("${CMAKE_CURRENT_LIST_DIR}/RecompShaders.cmake")
 
 if(NOT TARGET recomp_common)
     add_subdirectory("${RECOMP_ROOT}/common" "${CMAKE_BINARY_DIR}/recomp_common")
