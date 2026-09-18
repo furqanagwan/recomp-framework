@@ -7,7 +7,8 @@ The steps from CONTRIBUTING.md "Adding a game", for the executable and every DLL
 module in the manifest:
 
   1. stabilize codegen (seed unresolved calls, disable seeds that split functions)
-  2. build, then dump each loaded image (a DLL is dumped once the game loads it)
+  2. build, then dump each loaded image offline during codegen (falling back to
+     a timed game run with older SDKs)
   3. seed functions referenced from data, found in code gaps, and built in code
   4. stabilize, prune seeds on local branch targets, stabilize again
   5. write under-counted jump tables to switch_tables.toml
@@ -24,6 +25,7 @@ param(
     [Parameter(Mandatory)][string]$Game,
     [string]$Preset = "win-amd64-release",
     [int]$DumpTimeoutSeconds = 120,
+    [string]$Rexglue = "",
     # Reuse existing image dumps instead of running the game again.
     [switch]$KeepDumps
 )
@@ -59,6 +61,40 @@ function Get-DumpPath([string]$module) {
     if ($module -eq 'default') { Join-Path $out 'image_dump.bin' } else { Join-Path $out "image_dump_$module.bin" }
 }
 
+function Find-Rexglue {
+    if ($Rexglue) { return (Resolve-Path $Rexglue).Path }
+    $command = Get-Command rexglue -ErrorAction SilentlyContinue
+    if ($command) { return $command.Source }
+    if ($env:REXGLUE_SDK_PREFIX) {
+        $candidate = Join-Path $env:REXGLUE_SDK_PREFIX 'bin\rexglue.exe'
+        if (Test-Path $candidate) { return $candidate }
+    }
+    return $null
+}
+
+function Save-OfflineImageDumps {
+    $tool = Find-Rexglue
+    if (-not $tool) { return $false }
+    if (-not $KeepDumps) {
+        foreach ($module in $modules.Keys) { Remove-Item (Get-DumpPath $module) -ErrorAction SilentlyContinue }
+    }
+    $manifest = Get-ChildItem (Join-Path $gameRoot '*_manifest.toml') | Select-Object -First 1
+    if (-not $manifest) { return $false }
+    Write-Host "== dumping loaded images offline" -ForegroundColor Cyan
+    Push-Location $gameRoot
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $tool codegen $manifest.Name --dump-images $out
+        $ok = ($LASTEXITCODE -eq 0)
+        $ErrorActionPreference = 'Stop'
+        return $ok
+    }
+    finally {
+        $ErrorActionPreference = 'Stop'
+        Pop-Location
+    }
+}
+
 function Save-ImageDump([string]$module, [string]$guestFile) {
     $dump = Get-DumpPath $module
     if ($KeepDumps -and (Test-Path $dump)) { return $true }
@@ -81,9 +117,14 @@ $modules = Get-Modules
 Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
 & (Join-Path $PSScriptRoot 'build.ps1') -Game $Game -Preset $Preset
 
+$offlineDumped = Save-OfflineImageDumps
+if (-not $offlineDumped) {
+    Write-Warning 'Offline image dumping is unavailable or failed; falling back to game-time dumping'
+}
 $dumped = @()
 foreach ($module in $modules.Keys) {
-    if (Save-ImageDump $module $modules[$module]) {
+    $dump = Get-DumpPath $module
+    if (($offlineDumped -and (Test-Path $dump)) -or (Save-ImageDump $module $modules[$module])) {
         $dumped += $module
         Write-Host "== dumped $module" -ForegroundColor Cyan
     }
