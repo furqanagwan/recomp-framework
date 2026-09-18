@@ -47,15 +47,18 @@ add_library(recomp_common STATIC
 
 if(REXGLUE_PLATFORM_UWP)
     target_sources(recomp_common PRIVATE src/platform/native_file_picker_uwp.cpp
-                                         src/platform/http_download_windows.cpp)
+                                         src/platform/http_download_windows.cpp
+                                         src/platform/application_restart_windows.cpp)
     rexglue_uwp_cppwinrt_include_dir(recomp_cppwinrt_include_dir)
     target_include_directories(recomp_common SYSTEM PRIVATE "${recomp_cppwinrt_include_dir}")
 elseif(WIN32)
     target_sources(recomp_common PRIVATE src/platform/native_file_picker_windows.cpp
-                                         src/platform/http_download_windows.cpp)
+                                         src/platform/http_download_windows.cpp
+                                         src/platform/application_restart_windows.cpp)
 else()
     target_sources(recomp_common PRIVATE src/platform/native_file_picker_unix.cpp
-                                         src/platform/http_download_unix.cpp)
+                                         src/platform/http_download_unix.cpp
+                                         src/platform/application_restart_unix.cpp)
 endif()
 
 add_library(recomp::common ALIAS recomp_common)

@@ -27,6 +27,7 @@
 #include "recomp/ui/monochrome_theme.h"
 #include "recomp/ui/settings_dialog.h"
 #include "recomp/ui/title_update_dialog.h"
+#include "recomp/platform/application_restart.h"
 #include "recomp/ui/update_required_dialog.h"
 #include "recomp/ui/xbox_guide.h"
 #include "recomp/ui/achievement_popup.h"
@@ -185,8 +186,20 @@ std::optional<rex::PathConfig> GameRecompApp::FinalizeTitleUpdatePaths(
           .download_folder = paths_.user_data_root() / "downloads",
           .owner_window = window() ? window()->GetNativeWindowHandle() : nullptr,
           .can_play_without_update = false,
-          .on_installed = [paths,
-                           resume = std::move(resume)]() mutable { resume(std::move(paths)); },
+          // The guest image is built as the runtime starts, so an update that
+          // arrives after that only takes effect next launch - as it did on the
+          // console, which restarted. Where the host will not start us again,
+          // carrying on in this process still applies the patch correctly.
+          .on_installed =
+              [this, paths, resume = std::move(resume)]() mutable {
+                std::string error;
+                if (RestartApplication(error)) {
+                  app_context().QuitFromUIThread();
+                  return;
+                }
+                REXLOG_WARN("Carrying on without restarting: {}", error);
+                resume(std::move(paths));
+              },
           .on_declined = [this] { app_context().QuitFromUIThread(); },
           .on_quit = [this] { app_context().QuitFromUIThread(); },
       });

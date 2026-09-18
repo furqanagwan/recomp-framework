@@ -25,6 +25,10 @@ class WindowedAppContext;
 
 namespace recomp {
 
+namespace guide_scene {
+struct Screen;
+}
+
 class GuideResources;
 class HeldKeyMask;
 struct GuideTheme;
@@ -91,6 +95,8 @@ class UpdateRequiredDialog final : public rex::ui::ImGuiDialog {
   void BuildRows();
   void HandleInput();
   void DrawScene(ImDrawList* draw_list, const ImGuiIO& io);
+  void DrawProgress(ImDrawList* draw_list, const ImGuiIO& io,
+                    const guide_scene::Screen& screen, float alpha);
   std::vector<std::string> BodyLines(float width, float text_size) const;
   std::string StatusLine() const;
 

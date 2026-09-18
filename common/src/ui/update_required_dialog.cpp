@@ -1,6 +1,7 @@
 #include "recomp/ui/update_required_dialog.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -68,6 +69,24 @@ constexpr const char* kInfoIcon = "ico_64x_info.png";
 // row band's colours so it belongs to the rest.
 constexpr float kBarHeight = 6.0f;
 constexpr ImU32 kBarTrack = IM_COL32(0xD2, 0xD5, 0xD9, 0xFF);
+
+// The console's Update in Progress panel, which replaces the question once the
+// player has chosen. Unlike the question it is one panel with a header band,
+// and its only way out is B. Measured off a photograph of a television, so the
+// proportions are close rather than exact and the colours are approximate.
+constexpr float kProgressX = 106.0f;
+constexpr float kProgressWidth = 640.0f;
+constexpr float kProgressMinHeight = 232.0f;
+constexpr float kBandHeight = 34.0f;
+constexpr float kBandTextSize = 19.0f;
+constexpr ImU32 kBandTop = IM_COL32(0xE9, 0xEE, 0xF1, 0xFF);
+constexpr ImU32 kBandBottom = IM_COL32(0xD5, 0xDD, 0xE2, 0xFF);
+constexpr ImU32 kPanelTop = IM_COL32(0xF6, 0xF8, 0xF9, 0xFF);
+constexpr ImU32 kPanelBottom = IM_COL32(0xE4, 0xEA, 0xED, 0xFF);
+constexpr ImU32 kPanelText = IM_COL32(0x2A, 0x33, 0x3A, 0xFF);
+constexpr float kProgressBarHeight = 14.0f;
+constexpr ImU32 kProgressTrack = IM_COL32(0xC6, 0xCC, 0xD0, 0xFF);
+constexpr ImU32 kProgressFill = IM_COL32(0x3C, 0xB0, 0x35, 0xFF);
 
 constexpr float kLegendGap = 25.0f;
 constexpr float kLegendGlyph = 20.0f;
@@ -460,16 +479,26 @@ void UpdateRequiredDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) {
   };
   const auto size = [&](float units) { return screen.Size(units * kCanvasToReference); };
 
+  // Once the player has chosen, the console replaced the question with its own
+  // Update in Progress panel. That is a different scene, not a state of this
+  // one.
+  if (stage_ == Stage::kLooking || stage_ == Stage::kDownloading ||
+      stage_ == Stage::kInstalling) {
+    DrawProgress(draw_list, io, screen, alpha);
+    return;
+  }
+
   const float left_width = kPaneWidth * kSplit;
   const float text_width = left_width - kPadding * 2.0f;
   const auto lines = BodyLines(size(text_width), size(kBodyTextSize));
   const float line_height = kBodyTextSize * kLineSpacing;
-  const bool busy = stage_ == Stage::kLooking || stage_ == Stage::kDownloading ||
-                    stage_ == Stage::kInstalling;
-  const float rows_height = busy ? 0.0f : kRowHeight * static_cast<float>(rows_.size());
-  const float bar_height = stage_ == Stage::kDownloading ? kBarHeight + kPadding : 0.0f;
+  const bool busy = false;
+  const float rows_height = kRowHeight * static_cast<float>(rows_.size());
+  const float bar_height = 0.0f;
   const float body_height = static_cast<float>(lines.size()) * line_height;
-  const float pane_height = kPadding + body_height + bar_height + kPadding + rows_height + kPadding;
+  // The rows run to the foot of the pane, as the console's do, so there is no
+  // padding under the last one.
+  const float pane_height = kPadding + body_height + bar_height + kPadding + rows_height;
   const float pane_top = (kCanvasHeight - pane_height) * 0.5f;
 
   draw_list->AddRectFilled(ImVec2(0.0f, 0.0f), io.DisplaySize, Fade(theme_.dim, alpha));
@@ -513,24 +542,8 @@ void UpdateRequiredDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) {
              size(kBodyTextSize), Fade(kBodyText, alpha), lines[i]);
   }
 
-  if (stage_ == Stage::kDownloading) {
-    const float bar_top = pane_top + kPadding + body_height + kPadding * 0.5f;
-    const ImVec2 track_min = at(kPaneX + kPadding, bar_top);
-    const ImVec2 track_max = at(kPaneX + left_width - kPadding, bar_top + kBarHeight);
-    draw_list->AddRectFilled(track_min, track_max, Fade(kBarTrack, alpha));
-    const uint64_t total = progress_.total;
-    if (total > 0) {
-      const float fraction =
-          std::clamp(static_cast<float>(progress_.received) / static_cast<float>(total), 0.0f,
-                     1.0f);
-      draw_list->AddRectFilled(
-          track_min, ImVec2(track_min.x + (track_max.x - track_min.x) * fraction, track_max.y),
-          Fade(kFocus, alpha));
-    }
-  }
-
   // The rows, at the foot of the pale pane.
-  const float rows_top = pane_top + pane_height - kPadding - rows_height;
+  const float rows_top = pane_top + pane_height - rows_height;
   for (size_t i = 0; i < rows_.size() && !busy; ++i) {
     const float row_top = rows_top + kRowHeight * static_cast<float>(i);
     const ImVec2 row_min = at(kPaneX, row_top);
@@ -601,6 +614,120 @@ void UpdateRequiredDialog::DrawScene(ImDrawList* draw_list, const ImGuiIO& io) {
     shadowed(position, legend_text, hint.label);
     x = position.x + TextWidth(legend_text, hint.label) + size(kLegendItemGap);
   }
+}
+
+void UpdateRequiredDialog::DrawProgress(ImDrawList* draw_list, const ImGuiIO& io,
+                                       const Screen& screen, float alpha) {
+  const auto at = [&](float x, float y) {
+    return screen.At((x - kCanvasWidth * 0.5f) * kCanvasToReference,
+                     (y - kCanvasHeight * 0.5f) * kCanvasToReference);
+  };
+  const auto size = [&](float units) { return screen.Size(units * kCanvasToReference); };
+
+  const float text_width = kProgressWidth - kPadding * 2.0f;
+  const std::string body =
+      "Please don't turn off your computer while the update is being installed. "
+      "The game will restart when the update is complete.";
+  const auto lines = Wrap(body, size(kBodyTextSize), size(text_width));
+  const float line_height = kBodyTextSize * kLineSpacing;
+
+  const float label_block = kBodyTextSize * kLineSpacing + kProgressBarHeight;
+  const float content = kPadding + static_cast<float>(lines.size()) * line_height + kPadding +
+                        label_block + kPadding;
+  const float panel_height = std::max(kProgressMinHeight, kBandHeight + content);
+  const float panel_top = (kCanvasHeight - panel_height) * 0.5f;
+
+  draw_list->AddRectFilled(ImVec2(0.0f, 0.0f), io.DisplaySize, Fade(theme_.dim, alpha));
+
+  // The header band, then the panel under it, both lit from the top.
+  draw_list->AddRectFilledMultiColor(at(kProgressX, panel_top),
+                                     at(kProgressX + kProgressWidth, panel_top + kBandHeight),
+                                     Fade(kBandTop, alpha), Fade(kBandTop, alpha),
+                                     Fade(kBandBottom, alpha), Fade(kBandBottom, alpha));
+  draw_list->AddRectFilledMultiColor(at(kProgressX, panel_top + kBandHeight),
+                                     at(kProgressX + kProgressWidth, panel_top + panel_height),
+                                     Fade(kPanelTop, alpha), Fade(kPanelTop, alpha),
+                                     Fade(kPanelBottom, alpha), Fade(kPanelBottom, alpha));
+
+  // The information icon sits in the band, with the title beside it.
+  rex::ui::ImmediateTexture* icon = resources_ ? resources_->Get(kInfoIcon) : nullptr;
+  const ImVec2 icon_center =
+      at(kProgressX + kPadding * 0.6f + kIconSize * 0.5f, panel_top + kBandHeight * 0.5f);
+  if (icon) {
+    const float half = size(kIconSize * 0.5f);
+    draw_list->AddImage(reinterpret_cast<ImTextureID>(icon),
+                        ImVec2(icon_center.x - half, icon_center.y - half),
+                        ImVec2(icon_center.x + half, icon_center.y + half), ImVec2(0, 0),
+                        ImVec2(1, 1), Fade(IM_COL32(255, 255, 255, 255), alpha));
+  } else {
+    draw_list->AddCircleFilled(icon_center, size(kIconSize * 0.5f), Fade(kInfoDisc, alpha), 32);
+    const float letter = size(kIconSize * 0.62f);
+    DrawText(draw_list,
+             ImVec2(icon_center.x - TextWidth(letter, "i") * 0.5f, icon_center.y - letter * 0.56f),
+             letter, Fade(IM_COL32(0xF5, 0xF5, 0xF5, 0xFF), alpha), "i");
+  }
+  const float band_text = size(kBandTextSize);
+  DrawText(draw_list,
+           ImVec2(at(kProgressX + kPadding * 0.6f + kIconSize + kIconGap, 0.0f).x,
+                  icon_center.y - band_text * 0.58f),
+           band_text, Fade(kPanelText, alpha), "Update in Progress");
+
+  float y = panel_top + kBandHeight + kPadding;
+  for (const std::string& line : lines) {
+    DrawText(draw_list, at(kProgressX + kPadding, y), size(kBodyTextSize), Fade(kPanelText, alpha),
+             line);
+    y += line_height;
+  }
+
+  // The label and its bar sit at the foot of the panel, as the console has them.
+  const float bar_top = panel_top + panel_height - kPadding - kProgressBarHeight;
+  const float label_y = bar_top - kBodyTextSize * kLineSpacing;
+  std::string label = "Downloading...";
+  if (stage_ == Stage::kLooking) {
+    label = "Looking for the update...";
+  } else if (stage_ == Stage::kInstalling) {
+    label = "Installing...";
+  }
+  if (const std::string status = StatusLine(); !status.empty()) {
+    label += "  " + status;
+  }
+  DrawText(draw_list, at(kProgressX + kPadding, label_y), size(kBodyTextSize),
+           Fade(kPanelText, alpha), label);
+
+  const ImVec2 track_min = at(kProgressX + kPadding, bar_top);
+  const ImVec2 track_max =
+      at(kProgressX + kProgressWidth - kPadding, bar_top + kProgressBarHeight);
+  draw_list->AddRectFilled(track_min, track_max, Fade(kProgressTrack, alpha));
+  const uint64_t total = progress_.total;
+  float fraction = 0.0f;
+  if (stage_ == Stage::kInstalling) {
+    fraction = 1.0f;
+  } else if (total > 0) {
+    fraction = std::clamp(static_cast<float>(progress_.received) / static_cast<float>(total), 0.0f,
+                          1.0f);
+  } else {
+    // Nothing to measure yet: the console still showed a sliver moving, so the
+    // bar creeps rather than sitting empty.
+    fraction = 0.06f + 0.04f * static_cast<float>(std::sin(ImGui::GetTime() * 3.0));
+  }
+  draw_list->AddRectFilled(
+      track_min, ImVec2(track_min.x + (track_max.x - track_min.x) * fraction, track_max.y),
+      Fade(kProgressFill, alpha));
+
+  // B Cancel, under the panel at its left edge.
+  const float legend_text = size(kLegendTextSize);
+  const float glyph = size(kLegendGlyph);
+  const float legend_y = at(0.0f, panel_top + panel_height + kLegendGap * 0.6f).y;
+  const float x = at(kProgressX, 0.0f).x;
+  DrawGlyph(draw_list, ImVec2(x + glyph * 0.5f, legend_y), glyph, "B", alpha,
+            reinterpret_cast<ImTextureID>(resources_ ? resources_->Get(ButtonPicture("B"))
+                                                     : nullptr));
+  const ImVec2 position(x + glyph + size(kLegendGlyphGap), legend_y - legend_text * 0.55f);
+  const float offset = std::max(1.0f, size(1.0f));
+  const Palette palette = theme_.blades ? BladesPalette(theme_) : kMetro;
+  DrawText(draw_list, ImVec2(position.x + offset, position.y + offset), legend_text,
+           Fade(palette.shadow, alpha), "Cancel");
+  DrawText(draw_list, position, legend_text, Fade(palette.chrome, alpha), "Cancel");
 }
 
 }  // namespace recomp
