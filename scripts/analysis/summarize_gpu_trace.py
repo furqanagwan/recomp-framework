@@ -15,6 +15,12 @@ common source of colour bugs are flagged: a green or magenta tint usually means 
 YUV or two-channel normal map texture reached a shader as colour. To find the draw
 behind an artifact, skip its pixel shader with --gpu_skip_pixel_shaders=<hash> and
 compare screenshots.
+
+With --gpu_trace_submitters=true each draw also carries the guest code that wrote
+its packet, and the summary groups a shader program's draws by it: that is the
+engine function a native renderer hooks. Look the addresses up in the game's
+functions.toml or its .map file; they are return addresses, so each one is a few
+instructions past the call, inside the calling function.
 """
 import argparse
 import json
@@ -96,6 +102,36 @@ def format_vectors(vectors: list[int]) -> str:
     return ", ".join(parts)
 
 
+def submitters_report(draws: list[dict]) -> list[str]:
+    """Per shader program, the guest code that wrote its draws' packets.
+
+    The addresses are sampled per command buffer page, so a stack is the code
+    that first wrote into the page a draw's packet sits in. One draw's stack can
+    therefore belong to the draw before it; a program whose draws nearly all
+    report the same stack has been submitted by that code, which is the reading
+    this is for.
+    """
+    tagged = [draw for draw in draws if draw.get("submitter")]
+    if not tagged:
+        return []
+
+    lines = ["", "Submitters (run with --gpu_trace_submitters=true)"]
+    by_program = defaultdict(Counter)
+    for draw in tagged:
+        program = (draw.get("vs") or "(none)", draw["ps"] or "(none)")
+        by_program[program][tuple(draw["submitter"])] += 1
+    for (vertex, pixel), stacks in sorted(by_program.items(), key=lambda item: -sum(item[1].values())):
+        lines.append(f"  {vertex}:{pixel}: {sum(stacks.values())} draws from {len(stacks)} site(s)")
+        for stack, count in stacks.most_common(3):
+            share = 100.0 * count / sum(stacks.values())
+            lines.append(f"    {count:>5} ({share:.0f}%)  {' <- '.join(stack[:6])}")
+    missing = len(draws) - len(tagged)
+    if missing:
+        lines.append(f"  {missing} draw(s) with no sample: their page was written before the"
+                     " watch was armed")
+    return lines
+
+
 def summarize(draws: list[dict]) -> list[str]:
     lines = []
     frames = sorted({draw["frame"] for draw in draws})
@@ -120,6 +156,7 @@ def summarize(draws: list[dict]) -> list[str]:
         lines.append(f"  trace only these: --gpu_trace_shaders={selection}")
 
     lines.extend(constants_report(draws))
+    lines.extend(submitters_report(draws))
 
     shaders = Counter(draw["ps"] or "(none)" for draw in draws)
     lines.append("")

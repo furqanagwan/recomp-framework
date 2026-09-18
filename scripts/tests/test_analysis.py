@@ -359,3 +359,25 @@ def test_gpu_trace_summary_separates_still_and_moving_constants():
     assert "same every draw: c0" in report
     assert "same within a frame: c1" in report
     assert "per draw: c2" in report
+
+
+def test_gpu_trace_summary_groups_a_program_by_its_submitter():
+    from summarize_gpu_trace import summarize
+
+    def draw(submitter):
+        entry = {"frame": 1, "draw": 0, "skipped": False, "surface_pitch": 1280,
+                 "color_format": "k_8_8_8_8", "msaa": 1, "vs": "AA", "ps": "BB",
+                 "textures": []}
+        if submitter:
+            entry["submitter"] = submitter
+        return entry
+
+    world = ["0x82001000", "0x82002000"]
+    other = ["0x82001000", "0x82009000"]
+    report = "\n".join(summarize([draw(world), draw(world), draw(world), draw(other), draw(None)]))
+    assert "AA:BB: 4 draws from 2 site(s)" in report
+    assert "0x82001000 <- 0x82002000" in report
+    assert "(75%)" in report
+    assert "1 draw(s) with no sample" in report
+    # A trace without the cvar says nothing about submitters.
+    assert "Submitters" not in "\n".join(summarize([draw(None)]))

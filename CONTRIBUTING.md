@@ -212,6 +212,50 @@ camera) and which change per draw (that object's own transform). A program whose
 vertex shader reads no transform constants and fetches no textures is interface
 or overlay geometry, not the world.
 
+### Finding the function that submits a program's draws
+
+Naming the shader program that draws the world is half the answer. A native
+renderer replaces the engine's own submission, so it has to hook the function
+that submits those meshes, and nothing in the trace says which one that is: the
+command processor runs behind the game, so by the time it executes a draw packet
+the guest thread that wrote the packet is elsewhere.
+
+`--gpu_trace_submitters=true` answers it from the other end. While a trace is
+open, the buffers the game builds commands in are write-watched; the first write
+to each page faults on the guest thread, where the call stack still says which
+code is submitting, and the stack is kept against that page. Each traced draw
+then carries the stack covering its packet:
+
+```
+.\framework\scripts\run_game.ps1 -Game <FOLDER> -Seconds 60 -Screenshots 55 -GameArgs '--gpu_trace_frame=3000','--gpu_trace_frame_count=30','--gpu_trace_shaders=<vs>:<ps>','--gpu_trace_submitters=true'
+```
+
+The summary groups each program's draws by stack:
+
+```
+Submitters (run with --gpu_trace_submitters=true)
+  A1B2...:C3D4...: 812 draws from 3 site(s)
+      782 (96%)  0x8241A0C4 <- 0x82419B38 <- 0x823F7714
+```
+
+Read a stack as return addresses, innermost first, so each one is a few
+instructions past a call, inside the function that made it. Find the function
+containing it in the game's `config/functions.toml` or its `.map` file: the
+innermost frames are the graphics library writing the packet, and the first
+address that belongs to the game's own code is the submitter to hook.
+
+A site that covers nearly all of a program's draws is the answer. Several sites
+with similar shares usually means the program is drawn from more than one place,
+which a renderer has to handle, not a fault in the trace.
+
+This samples rather than records. A page faults only on its first write after
+the watch is armed, so a stack is the code that first wrote into the page a
+draw's packet sits in, and one draw's stack can belong to the draw before it.
+Most draws get no sample at all - around one in ten carried one in a Skate
+capture - so trace enough frames that the site you are after appears many times,
+and read the shares rather than any one line. What the sampling cannot do is
+prove a rare site is absent.
+
 ### Embedding native-renderer shaders
 
 List a game's shaders once after `recomp_add_game`. The stage is inferred from
