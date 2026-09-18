@@ -126,6 +126,12 @@ Invoke-StabilizeCodegen
 
 $offlineDumped = Save-OfflineImageDumps
 if (-not $offlineDumped) {
+    $manifest = Get-ChildItem (Join-Path $gameRoot '*_manifest.toml') | Select-Object -First 1
+    $updateBuild = $manifest -and
+        (Select-String -LiteralPath $manifest.FullName -Pattern '^\s*patched_file_path\s*=' -Quiet)
+    if ($updateBuild) {
+        throw 'Offline image dumping failed for an update build. Check rexglue --dump-images and stage each base XEX beside its required XEXP; an installed runtime update is not used for discovery.'
+    }
     Write-Warning 'Offline image dumping is unavailable or failed; falling back to game-time dumping'
 }
 $dumped = @()

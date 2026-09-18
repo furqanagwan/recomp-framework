@@ -105,7 +105,7 @@ Each step is a script in `framework/scripts/analysis` you can also run on its ow
 | Step | Script | Fixes |
 | --- | --- | --- |
 | Stabilize | `stabilize_codegen.py` | Seeds unresolved call targets, disables seeds that split functions (recorded in `config/disabled_function_seeds.txt`), and checks the generated code for leftover unresolved-branch stubs |
-| Dump | `RECOMP_DUMP_IMAGE=<file>` (plus `RECOMP_DUMP_MODULE=<Name.xex>` for a DLL) | Writes the loaded image for the scans |
+| Dump | `rexglue codegen --dump-images <dir>` | Writes decrypted, decompressed and patched module images for the scans without launching the game; disc builds can fall back to `RECOMP_DUMP_IMAGE` at runtime |
 | Scan | `find_missing_functions.py --write`, then with `--gaps` and `--code-refs` | Functions referenced from data, after returns, or whose address is only built in code (the usual cause of `Call to invalid or unregistered function`) |
 | Prune | `prune_bad_seeds.py --image <dump>` | Gap seeds that split loops |
 | Jump tables | `find_short_switch_tables.py --write` | Tables codegen sized too small (the game dies with `0xC000001D`, an illegal instruction, on a switch's out-of-range trap); adds `switch_tables.toml` to the manifest |
@@ -144,6 +144,10 @@ For an update build:
    copy of each base XEX beside its matching `.xexp` in that folder.
 2. Add `patched_file_path` to the entrypoint and every patched module in the
    codegen manifest. Codegen loads the staged XEX and applies its adjacent patch.
+   `discover_functions.ps1` dumps that patched image offline, so the update does
+   not need to be installed in the runtime. If a base XEX, XEXP, or a rexglue
+   with `--dump-images` is missing, discovery stops immediately instead of
+   waiting for a game-time dump that cannot pass the update installer.
 3. Fill `GameDescriptor::title_update` with the update label, title ID, media ID,
    version, and the size and lowercase XXH3-128 digest of every required `.xexp`.
 4. Give the update its own codegen config and rediscover its functions. An
