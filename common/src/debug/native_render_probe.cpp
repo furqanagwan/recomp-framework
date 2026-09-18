@@ -49,6 +49,10 @@ bool RenderProbeFrame(const rex::graphics::NativeGuestOutputRenderContext& conte
                           0.5f + 0.5f * std::sin(phase + 4.189f), 1.0f};
 
   nrhi::Cmd& cmd = *context.cmd;
+  // The probe's one pass, named so its GPU time lands in a stage column of
+  // frame_stats_csv. It is what there is to measure until a real renderer
+  // exists, so it is also how the stage timing itself gets checked.
+  cmd.ProfileRegion(nrhi::ProfileStage::kMain);
   cmd.Barrier(context.guest_output, nrhi::ResourceState::kGuestOutput,
               nrhi::ResourceState::kRenderTarget);
   cmd.FlushBarriers();
@@ -58,6 +62,7 @@ bool RenderProbeFrame(const rex::graphics::NativeGuestOutputRenderContext& conte
   cmd.Barrier(context.guest_output, nrhi::ResourceState::kRenderTarget,
               nrhi::ResourceState::kGuestOutput);
   cmd.FlushBarriers();
+  cmd.ProfileRegion(nrhi::ProfileStage::kTail);
   return true;
 }
 
