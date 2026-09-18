@@ -95,6 +95,13 @@ function Save-OfflineImageDumps {
     }
 }
 
+function Invoke-StabilizeCodegen {
+    $arguments = @('stabilize_codegen.py', '--game', $Game)
+    $tool = Find-Rexglue
+    if ($tool) { $arguments += @('--rexglue', $tool) }
+    Invoke-Analysis 'stabilize codegen' $arguments
+}
+
 function Save-ImageDump([string]$module, [string]$guestFile) {
     $dump = Get-DumpPath $module
     if ($KeepDumps -and (Test-Path $dump)) { return $true }
@@ -114,7 +121,7 @@ function Save-ImageDump([string]$module, [string]$guestFile) {
 }
 
 $modules = Get-Modules
-Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+Invoke-StabilizeCodegen
 & (Join-Path $PSScriptRoot 'build.ps1') -Game $Game -Preset $Preset
 
 $offlineDumped = Save-OfflineImageDumps
@@ -138,11 +145,11 @@ foreach ($module in $dumped) {
     Invoke-Analysis "${module}: code gaps" @('find_missing_functions.py', '--game', $Game, '--module', $module, '--gaps', '--write')
     Invoke-Analysis "${module}: code-built addresses" @('find_missing_functions.py', '--game', $Game, '--module', $module, '--code-refs', '--write')
 }
-Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+Invoke-StabilizeCodegen
 foreach ($module in $dumped) {
     Invoke-Analysis "${module}: prune seeds" @('prune_bad_seeds.py', '--game', $Game, '--module', $module, '--image', (Get-DumpPath $module))
 }
-Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+Invoke-StabilizeCodegen
 foreach ($module in $dumped) {
     Invoke-Analysis "${module}: jump tables" @('find_short_switch_tables.py', '--game', $Game, '--module', $module, '--image', (Get-DumpPath $module), '--write')
 }
@@ -150,7 +157,7 @@ foreach ($module in $dumped) {
 foreach ($module in $modules.Keys) {
     Invoke-Analysis "${module}: setjmp" @('find_setjmp.py', '--game', $Game, '--module', $module, '--write')
 }
-Invoke-Analysis 'stabilize codegen' @('stabilize_codegen.py', '--game', $Game)
+Invoke-StabilizeCodegen
 & (Join-Path $PSScriptRoot 'build.ps1') -Game $Game -Preset $Preset
 
 $skipped = @($modules.Keys | Where-Object { $_ -notin $dumped })
