@@ -274,8 +274,9 @@ recomp_add_shaders(skate_3
 The normal build needs no shader compiler. It recursively expands quoted HLSL
 includes and generates `<target>_shaders.h` in the target's include path. Each
 shader is an `EmbeddedShader` containing `hlsl` as a `std::string_view`, `spirv`
-as a `std::span<const uint32_t>`, and `entry_point`. The identifier is the source
-path converted to a C++ identifier. For example:
+as a `std::span<const uint32_t>`, `dxil` as a `std::span<const uint8_t>`, and
+`entry_point`. The identifier is the source path converted to a C++ identifier.
+For example:
 
 ```cpp
 #include "skate_3_shaders.h"
@@ -284,17 +285,29 @@ using namespace recomp::shaders::skate_3;
 const auto& shader = shaders_scene_vs_hlsl;
 ```
 
-Vulkan bytecode lives beside its source: `scene.vs.hlsl` uses the committed
-`scene.vs.spv`. After changing HLSL, regenerate it explicitly and commit it:
+Both backends' bytecode lives beside the source: `scene.vs.hlsl` uses the
+committed `scene.vs.spv` and `scene.vs.dxil`. DXC builds both, at the same
+`_6_0` profile, so the two backends run the same shader rather than the same
+text through two compilers. After changing HLSL, regenerate them explicitly and
+commit both:
 
 ```powershell
-cmake --build out/build/win-amd64-release --target skate_3_spirv
+cmake --build out/build/win-amd64-release --target skate_3_shaders
 ```
 
-That maintenance target looks for `dxc` on `PATH`. Set
-`RECOMP_DXC_EXECUTABLE` at configure time when it is elsewhere. Editing an
-HLSL file or any `.hlsli` below an include directory regenerates the embedded
-header on the next ordinary build.
+That maintenance target looks for `dxc` on `PATH`. Set `RECOMP_DXC_EXECUTABLE`
+at configure time when it is elsewhere. Editing an HLSL file or any `.hlsli`
+below an include directory regenerates the embedded header on the next ordinary
+build.
+
+One compiler will not do: **the `dxc.exe` that ships in the Windows SDK is built
+without SPIR-V**, and it is the one found on `PATH` on a machine with no Vulkan
+SDK. The DXIL half works with it and the SPIR-V half cannot. Install the Vulkan
+SDK, or a DirectX Shader Compiler release from Microsoft's GitHub, and point
+`RECOMP_DXC_EXECUTABLE` at that one. The build says so rather than failing per
+shader.
+
+The normal build needs neither compiler, only the committed bytecode.
 
 ### Games with DLL modules
 

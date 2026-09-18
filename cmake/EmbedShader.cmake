@@ -1,4 +1,4 @@
-foreach(required SHADER_SOURCE SHADER_SPIRV SHADER_OUTPUT SHADER_NAMESPACE
+foreach(required SHADER_SOURCE SHADER_SPIRV SHADER_DXIL SHADER_OUTPUT SHADER_NAMESPACE
                  SHADER_IDENTIFIER SHADER_ENTRY_POINT)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
         message(FATAL_ERROR "EmbedShader.cmake requires -D${required}")
@@ -94,6 +94,16 @@ while(offset LESS spirv_hex_length)
     math(EXPR offset "${offset} + 8")
 endwhile()
 
+if(NOT EXISTS "${SHADER_DXIL}")
+    message(FATAL_ERROR
+        "Missing committed DXIL: ${SHADER_DXIL}\n"
+        "Run the game's <target>_shaders build target with DXC installed, then commit the file.")
+endif()
+# D3D12 refuses unsigned DXIL, so these bytes are dxc's signed output as it
+# wrote them, carried through without being repacked.
+file(READ "${SHADER_DXIL}" dxil_hex HEX)
+string(REGEX REPLACE "(..)" "0x\\1," dxil_bytes "${dxil_hex}")
+
 get_filename_component(output_dir "${SHADER_OUTPUT}" DIRECTORY)
 file(MAKE_DIRECTORY "${output_dir}")
 file(WRITE "${SHADER_OUTPUT}"
@@ -102,8 +112,10 @@ file(WRITE "${SHADER_OUTPUT}"
     "namespace recomp::shaders::${SHADER_NAMESPACE} {\n"
     "inline constexpr char ${SHADER_IDENTIFIER}_hlsl_data[] = {${hlsl_bytes}0};\n"
     "inline constexpr uint32_t ${SHADER_IDENTIFIER}_spirv_data[] = {${spirv_words}};\n"
+    "inline constexpr uint8_t ${SHADER_IDENTIFIER}_dxil_data[] = {${dxil_bytes}};\n"
     "inline constexpr EmbeddedShader ${SHADER_IDENTIFIER}{\n"
     "    std::string_view(${SHADER_IDENTIFIER}_hlsl_data, sizeof(${SHADER_IDENTIFIER}_hlsl_data) - 1),\n"
     "    std::span<const uint32_t>(${SHADER_IDENTIFIER}_spirv_data),\n"
+    "    std::span<const uint8_t>(${SHADER_IDENTIFIER}_dxil_data),\n"
     "    \"${SHADER_ENTRY_POINT}\"};\n"
     "}  // namespace recomp::shaders::${SHADER_NAMESPACE}\n")
