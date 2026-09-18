@@ -38,7 +38,9 @@ def unresolved_in_sources(project: RecompProject) -> set[tuple[int, int]]:
 
 def seeds_between(project: RecompProject, branches: set[tuple[int, int]]) -> dict[int, str]:
     """Seeds strictly between a branch and its target: they cut one function in two."""
-    seeds = project.seeds()
+    # Bounds written out by hand say where a function really begins and ends; a
+    # split around one means those bounds are wrong, not that the entry should go.
+    seeds = project.seeds() - project.bounded_seeds()
     blamed = {}
     for target, source in branches:
         low, high = sorted((target, source))
@@ -54,7 +56,9 @@ def containing_function(starts: list[int], address: int) -> int | None:
 
 
 def seeds_splitting_functions(project: RecompProject, branches: set[tuple[int, int]]) -> dict[int, str]:
-    seeds = project.seeds()
+    # Bounds written out by hand say where a function really begins and ends; a
+    # split around one means those bounds are wrong, not that the entry should go.
+    seeds = project.seeds() - project.bounded_seeds()
     starts = project.function_starts()
     blamed = {}
     for target, source in branches:
@@ -73,16 +77,21 @@ def seeds_on_local_branch_targets(project: RecompProject, image: GuestImage) -> 
     address_taken = image.data_pointer_targets() | image.function_address_constants()
     targets = image.local_branch_targets()
     return {seed: "is a local branch target"
-            for seed in project.seeds() if seed in targets and seed not in address_taken}
+            for seed in project.seeds() - project.bounded_seeds()
+            if seed in targets and seed not in address_taken}
 
 
 def disable_seeds(project: RecompProject, blamed: dict[int, str]) -> None:
+    bounded = project.bounded_seeds()
+    dropped = sorted(seed for seed in blamed if seed not in bounded)
+    if not dropped:
+        return
     lines = project.functions_config.read_text().splitlines()
-    removed = {f'"0x{seed:08X}"' for seed in blamed}
+    removed = {f'"0x{seed:08X}"' for seed in dropped}
     kept = [line for line in lines if line.split(" = ", 1)[0] not in removed]
     project.functions_config.write_text("\n".join(kept) + "\n", newline="\n")
     with project.disabled_seeds_log.open("a", newline="\n") as log:
-        for seed in sorted(blamed):
+        for seed in dropped:
             log.write(f"0x{seed:08X} {blamed[seed]}\n")
 
 

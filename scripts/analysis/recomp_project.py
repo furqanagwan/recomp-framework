@@ -142,6 +142,10 @@ class RecompProject:
     def seeds(self) -> set[int]:
         return {int(address, 16) for address in SEED_LINE.findall(self.functions_config.read_text())}
 
+    def bounded_seeds(self) -> set[int]:
+        """Functions whose bounds are written out by hand, which pruning must not remove."""
+        return {start for start, _ in self.explicit_ranges()}
+
     def explicit_ranges(self) -> list[tuple[int, int]]:
         """(start, end) of functions whose bounds are given in functions.toml with `end =`."""
         return [(int(start, 16), int(end, 16)) for start, end in BOUNDED_SEED_LINE.findall(self.functions_config.read_text())]

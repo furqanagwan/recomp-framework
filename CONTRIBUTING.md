@@ -114,7 +114,14 @@ Each step is a script in `framework/scripts/analysis` you can also run on its ow
 Some functions still need explicit bounds in `functions.toml`
 (`"0xSTART" = { end = 0xEND }`): typically a leaf whose last block sits after its
 `blr`, or a switch whose cases each return. The stabilizer reports these as
-unresolved stubs with no seed to blame. `compare_runs.py` diffs two
+unresolved stubs with no seed to blame.
+
+Pruning leaves those bounds alone: an entry with `end =` states where a
+function really begins and ends, so a split around one means the bounds are
+wrong, not that the entry should go. The stabilizer keeps reporting the split
+until they are right.
+
+`compare_runs.py` diffs two
 `run_game.ps1` reports and exits non-zero on a regression.
 
 Other codegen overrides (`switch_tables`, `midasm_hook`, `indirect_calls`,

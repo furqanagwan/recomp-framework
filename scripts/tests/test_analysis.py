@@ -14,7 +14,8 @@ import recomp_project  # noqa: E402
 from find_missing_functions import candidates_from_code_constants, candidates_from_data_pointers  # noqa: E402
 from find_setjmp import find_jump_functions  # noqa: E402
 from find_short_switch_tables import short_tables  # noqa: E402
-from prune_bad_seeds import seeds_between, split_branches, unresolved_in_sources  # noqa: E402
+from prune_bad_seeds import (disable_seeds, seeds_between, split_branches,  # noqa: E402
+                            unresolved_in_sources)
 from recomp_project import GuestImage, PowerPc, RecompProject  # noqa: E402
 from stabilize_codegen import output_by_module  # noqa: E402
 
@@ -159,6 +160,17 @@ def test_seeds_between_branch_and_target_are_blamed(game):
     project = RecompProject("game")
     blamed = seeds_between(project, {(0x82000F00, 0x82001100)})
     assert set(blamed) == {0x82001000}
+
+
+def test_hand_written_bounds_are_not_pruned(game):
+    """A split around bounds given by hand means those bounds are wrong, not that they should go."""
+    config = game / "config" / "functions.toml"
+    config.write_text('[functions]\n"0x82001000" = { end = 0x82001200 }\n"0x82002000" = {}\n')
+    project = RecompProject("game")
+    assert seeds_between(project, {(0x82000F00, 0x82001100)}) == {}
+    disable_seeds(project, {0x82001000: "splits 0x82001100 -> 0x82000F00"})
+    assert '"0x82001000" = { end = 0x82001200 }' in config.read_text()
+    assert not project.disabled_seeds_log.exists()
 
 
 def test_unresolved_stubs_are_read_from_generated_sources(game):
