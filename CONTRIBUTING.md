@@ -179,6 +179,7 @@ The SDK has cvars for rendering bugs that work in release builds; pass them with
 | --- | --- |
 | `--frame_stats_csv=<file>` | One line per guest frame (time, draws, resolves) and an FPS summary in the log. `run_game.ps1` sets it and summarises it |
 | `--gpu_trace_frame=<N>` (`--gpu_trace_frame_count`, `--gpu_trace_path`) | One JSON line per draw of frame N: render target, shader hashes, texture formats and sizes. N counts presented frames, so `frame_stats_csv` rows are the same numbering and a run's frame rate tells you which N a scene falls on |
+| `--gpu_trace_min_draws=<N>` | Waits for a frame with at least N draws before starting. Which frame a game reaches its world on moves by thousands between runs, so a frame number alone often lands in a menu; with this, `--gpu_trace_frame=1` means "the first real scene" |
 | `--gpu_trace_shaders=<vs>[:<ps>],...` | Traces only these shader programs' draws. A busy frame's full trace is hundreds of megabytes; one geometry program is a few |
 | `--gpu_trace_constants=<N>` | Records the first N vertex shader constant vectors of each traced draw: the transform chain |
 | `--gpu_trace_vertex_buffers=true` | Records each traced draw's vertex buffers: fetch slot, guest address, size and stride |
