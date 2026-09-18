@@ -60,6 +60,9 @@ Scripts are run from the game repository root and find it automatically
 Adding a game, the codegen workflow and artwork are described in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Native-renderer shader embedding and fault-safe guest-memory reads are described
+in [docs/native_rendering.md](docs/native_rendering.md).
+
 Disc builds run without title updates. Builds that target a particular update
 pin and verify that exact package; see [TITLE_UPDATES.md](TITLE_UPDATES.md).
 

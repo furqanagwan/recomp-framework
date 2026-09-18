@@ -37,10 +37,14 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20
           -DCMAKE_C_FLAGS=-march=x86-64-v2 -DCMAKE_CXX_FLAGS=-march=x86-64-v2
+          -DRECOMP_BUILD_TESTS=ON
           -DREXSDK_DIR=${{ github.workspace }}/thirdparty/rexglue-sdk
 
       - name: Build
-        run: cmake --build build --target recomp_common
+        run: cmake --build build --target recomp_safe_guest_read_test
+
+      - name: Test
+        run: ctest --test-dir build -R recomp.safe_guest_read --output-on-failure
 
   macos:
     if: github.event_name == 'workflow_dispatch' && inputs.macos
@@ -60,7 +64,11 @@ jobs:
           -DCMAKE_C_COMPILER=/usr/bin/clang
           -DCMAKE_CXX_COMPILER=/usr/bin/clang++
           -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3
+          -DRECOMP_BUILD_TESTS=ON
           -DREXSDK_DIR=${{ github.workspace }}/thirdparty/rexglue-sdk
 
       - name: Build
-        run: cmake --build build --target recomp_common
+        run: cmake --build build --target recomp_safe_guest_read_test
+
+      - name: Test
+        run: ctest --test-dir build -R recomp.safe_guest_read --output-on-failure
