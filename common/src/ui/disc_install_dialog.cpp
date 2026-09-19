@@ -9,17 +9,105 @@
 #include <rex/logging.h>
 #include <rex/ui/windowed_app_context.h>
 
+#include <rex/ui/imgui_drawer.h>
+
+#include "recomp/input/controller_menu_watcher.h"
 #include "recomp/input/imgui_gamepad_bridge.h"
-#include "recomp/ui/dialog_layout.h"
+#include "recomp/ui/guide_resources.h"
+#include "recomp/ui/guide_sounds.h"
+#include "recomp/ui/virtual_keyboard_dialog.h"
+#include "guide_scene.h"
+#include "guide_theme.h"
+#include "held_key_mask.h"
 
 namespace recomp {
 
+using namespace guide_scene;
+
 namespace {
+
+// The same canvas, panes and list metrics as the update prompt, so the two
+// screens a player may meet before the game starts are plainly the same UI.
+constexpr float kCanvasWidth = 852.0f;
+constexpr float kCanvasHeight = 480.0f;
+constexpr float kCanvasToReference = kReferenceWidth / kCanvasWidth;
+
+constexpr float kPaneX = 100.0f;
+constexpr float kPaneWidth = 652.0f;
+constexpr float kPadding = 21.0f;
+constexpr float kHeaderTextSize = 22.0f;
+constexpr float kHeaderGap = 12.0f;
+constexpr float kIconSize = 20.0f;
+constexpr float kIconGap = 9.0f;
+
+constexpr ImU32 kPaneFill = IM_COL32(0xEB, 0xEB, 0xEB, 0xFF);
+constexpr ImU32 kBodyText = IM_COL32(0x0F, 0x12, 0x14, 0xFF);
+constexpr float kBodyTextSize = 16.0f;
+constexpr float kLineSpacing = 1.35f;
+
+constexpr float kRowHeight = 34.0f;
+constexpr float kRowTextSize = 17.0f;
+constexpr ImU32 kRowText = IM_COL32(0x2E, 0x34, 0x38, 0xFF);
+constexpr ImU32 kRowFocusText = IM_COL32(0xEB, 0xEB, 0xEB, 0xFF);
+constexpr ImU32 kFocus = IM_COL32(0x00, 0x8A, 0x00, 0xFF);
+constexpr ImU32 kRule = IM_COL32(0xD2, 0xD5, 0xD9, 0xFF);
+constexpr ImU32 kInfoDisc = IM_COL32(0x1B, 0x6F, 0xB8, 0xFF);
+constexpr const char* kInfoIcon = "ico_64x_info.png";
+
+constexpr float kBarHeight = 6.0f;
+
+// Up, down, A and B, plus their keyboard equivalents - the same set the update
+// prompt watches, so a key held from a previous screen does not carry through.
+constexpr ImGuiKey kWatchedKeys[] = {
+    ImGuiKey_DownArrow,        ImGuiKey_UpArrow,          ImGuiKey_Enter,
+    ImGuiKey_KeypadEnter,      ImGuiKey_Escape,           ImGuiKey_GamepadDpadDown,
+    ImGuiKey_GamepadDpadUp,    ImGuiKey_GamepadLStickDown, ImGuiKey_GamepadLStickUp,
+    ImGuiKey_GamepadFaceDown,  ImGuiKey_GamepadFaceRight,
+};
 
 std::string FormatGigabytes(uint64_t bytes) {
   char text[32];
   std::snprintf(text, sizeof(text), "%.2f GB", double(bytes) / (1024.0 * 1024.0 * 1024.0));
   return text;
+}
+
+// A path is one long word, so wrapping on spaces does nothing with it. The
+// console elides in the middle instead, which keeps the drive and the file name
+// - the two parts worth reading - and drops the directories between them.
+std::string ElideToWidth(const std::string& text, float size, float width) {
+  if (TextWidth(size, text) <= width || text.size() < 8) {
+    return text;
+  }
+  size_t keep = text.size() / 2;
+  while (keep > 4) {
+    const size_t head = keep / 2;
+    const size_t tail = keep - head;
+    const std::string candidate =
+        text.substr(0, head) + "..." + text.substr(text.size() - tail);
+    if (TextWidth(size, candidate) <= width) {
+      return candidate;
+    }
+    --keep;
+  }
+  return "...";
+}
+
+std::u16string ToUtf16(const std::string& text) {
+  std::u16string out;
+  out.reserve(text.size());
+  for (unsigned char c : text) {
+    out.push_back(static_cast<char16_t>(c));
+  }
+  return out;
+}
+
+std::string FromUtf16(const std::u16string& text) {
+  std::string out;
+  out.reserve(text.size());
+  for (char16_t c : text) {
+    out.push_back(c < 0x80 ? static_cast<char>(c) : '?');
+  }
+  return out;
 }
 
 }  // namespace
@@ -35,7 +123,56 @@ DiscInstallDialog::DiscInstallDialog(rex::ui::ImGuiDrawer* drawer,
     : ImGuiDialog(drawer),
       app_context_(app_context),
       request_(std::move(request)),
-      file_picker_(request_.owner_window) {}
+      theme_(CurrentGuideTheme()),
+      held_keys_(std::make_unique<HeldKeyMask>()),
+      file_picker_(request_.owner_window) {
+  if (drawer) {
+    resources_ = std::make_unique<GuideResources>(drawer->immediate_drawer());
+    resources_->LoadIfNeeded();
+  }
+  opened_at_ = ImGui::GetTime();
+  BuildRows();
+  GuestInputGate::OnMenuShown();
+  GuideSounds::Get().Play(GuideSounds::Cue::kOpen);
+}
+
+void DiscInstallDialog::BuildRows() {
+  rows_.clear();
+  if (NativeFilePicker::IsAvailable()) {
+    rows_.push_back({"Browse for a disc image", [this] { RequestPickedDiscImage(); }});
+  }
+  // The console would never show a text field; typing a path goes through the
+  // same keyboard a title gets from XamShowKeyboardUI.
+  rows_.push_back({"Enter the path to a disc image", [this] { AskForTypedPath(); }});
+  rows_.push_back({"Quit", [this] { Quit(); }});
+  selected_ = 0;
+}
+
+void DiscInstallDialog::Quit() {
+  Close();
+  if (request_.on_quit) {
+    request_.on_quit();
+  }
+}
+
+void DiscInstallDialog::AskForTypedPath() {
+  rex::kernel::xam::KeyboardUiRequest keyboard;
+  keyboard.title = ToUtf16("Disc image");
+  keyboard.description = ToUtf16("Enter the full path to your " + request_.game_display_name +
+                                 " disc image.");
+  keyboard.default_text = ToUtf16(std::string(typed_path_.data()));
+  keyboard.max_length = static_cast<uint32_t>(typed_path_.size() - 1);
+  new VirtualKeyboardDialog(imgui_drawer(), keyboard,
+                            [this](std::optional<std::u16string> text) {
+                              if (!text || text->empty()) {
+                                return;
+                              }
+                              const std::string path = FromUtf16(*text);
+                              std::snprintf(typed_path_.data(), typed_path_.size(), "%s",
+                                            path.c_str());
+                              BeginInstall(rex::to_path(path));
+                            });
+}
 
 DiscInstallDialog::~DiscInstallDialog() {
   if (worker_.joinable()) {
@@ -51,65 +188,172 @@ void DiscInstallDialog::OnDraw(ImGuiIO& io) {
     return;
   }
 
-  DialogLayout::DrawBackdrop("##recomp_install_backdrop", io, 1.0f);
-  DialogLayout::BeginCenteredPanel((request_.game_display_name + " Setup").c_str(), io, 640.0f);
-  ImGui::TextUnformatted("Game Files");
-  ImGui::Separator();
-  ImGui::Spacing();
-  if (stage_ == Stage::kInstalling) {
-    DrawInstalling();
-  } else {
-    DrawChooseImage();
-  }
+  ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+  ImGui::SetNextWindowSize(io.DisplaySize);
+  ImGui::Begin("##recomp_disc_install", nullptr,
+               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                   ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                   ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar |
+                   ImGuiWindowFlags_NoInputs);
+  DrawScene(ImGui::GetWindowDrawList(), io);
   ImGui::End();
-}
 
-void DiscInstallDialog::DrawChooseImage() {
-  ImGui::TextWrapped(
-      "%s game files were not found. Select your own Xbox 360 disc image to install them.",
-      request_.game_display_name.c_str());
-  ImGui::Spacing();
-  ImGui::TextDisabled("Install folder");
-  ImGui::TextWrapped("%s", request_.install_folder.string().c_str());
-  if (stage_ == Stage::kFailed) {
-    ImGui::Spacing();
-    ImGui::TextWrapped("Installation failed: %s", installer_.error().c_str());
-  }
-  ImGui::Spacing();
-  ImGui::SetNextItemWidth(-1.0f);
-  ImGui::InputTextWithHint("##disc_image_path", "Path to .iso", typed_path_.data(),
-                           typed_path_.size());
-
-  if (NativeFilePicker::IsAvailable()) {
-    ImGui::BeginDisabled(pending_pick_ != nullptr);
-    if (ImGui::Button("Browse", ImVec2(120.0f, 0.0f))) {
-      RequestPickedDiscImage();
+  // The first frames go by before the held-key mask is armed, so a button still
+  // down from whatever opened this screen is not read as a press on it.
+  if (frames_drawn_ < 2) {
+    if (++frames_drawn_ == 2) {
+      held_keys_->Arm(kWatchedKeys);
     }
-    ImGui::EndDisabled();
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("Install", ImVec2(120.0f, 0.0f)) && typed_path_[0] != '\0') {
-    BeginInstall(rex::to_path(typed_path_.data()));
     return;
   }
-  ImGui::SameLine();
-  if (ImGui::Button("Quit", ImVec2(120.0f, 0.0f))) {
-    Close();
-    if (request_.on_quit) {
-      request_.on_quit();
-    }
+  if (stage_ != Stage::kInstalling) {
+    HandleInput();
   }
 }
 
-void DiscInstallDialog::DrawInstalling() {
-  const uint64_t total = progress_.total_bytes.load();
-  const uint64_t copied = progress_.copied_bytes.load();
-  const float fraction = total ? float(double(copied) / double(total)) : 0.0f;
-  ImGui::TextWrapped("Installing from %s", disc_image_.filename().string().c_str());
-  ImGui::Spacing();
-  ImGui::ProgressBar(fraction, ImVec2(-1.0f, 0.0f), "");
-  ImGui::Text("%s / %s", FormatGigabytes(copied).c_str(), FormatGigabytes(total).c_str());
-  ImGui::TextDisabled("This only happens once.");
+void DiscInstallDialog::HandleInput() {
+  if (rows_.empty()) {
+    return;
+  }
+  const int before = selected_;
+  const int count = static_cast<int>(rows_.size());
+  if (held_keys_->Pressed(
+          {ImGuiKey_DownArrow, ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadLStickDown}, true)) {
+    selected_ = std::min(selected_ + 1, count - 1);
+  }
+  if (held_keys_->Pressed({ImGuiKey_UpArrow, ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp},
+                          true)) {
+    selected_ = std::max(selected_ - 1, 0);
+  }
+  if (selected_ != before) {
+    GuideSounds::Get().Play(GuideSounds::Cue::kFocus);
+  }
+  if (held_keys_->Pressed({ImGuiKey_Enter, ImGuiKey_KeypadEnter, ImGuiKey_GamepadFaceDown},
+                          false)) {
+    GuideSounds::Get().Play(GuideSounds::Cue::kSelect);
+    rows_[selected_].chosen();
+    return;
+  }
+  // There is no game to go back to yet, so B is the same as choosing Quit.
+  if (held_keys_->Pressed({ImGuiKey_Escape, ImGuiKey_GamepadFaceRight}, false)) {
+    GuideSounds::Get().Play(GuideSounds::Cue::kBack);
+    Quit();
+  }
+}
+
+void DiscInstallDialog::DrawScene(ImDrawList* draw_list, ImGuiIO& io) {
+  const Screen screen = FitScreen(io);
+  const Palette palette = theme_.blades ? BladesPalette(theme_) : kMetro;
+  const double now = ImGui::GetTime();
+  const float alpha =
+      std::clamp(static_cast<float>((now - opened_at_) / kTransOpenSeconds), 0.0f, 1.0f);
+
+  // Canvas units to pixels: the guide's own 852x480 scene, letterboxed into
+  // whatever the window is.
+  const auto at = [&](float x, float y) {
+    return screen.At((x - kCanvasWidth * 0.5f) * kCanvasToReference,
+                     (y - kCanvasHeight * 0.5f) * kCanvasToReference);
+  };
+  const auto size = [&](float units) { return screen.Size(units * kCanvasToReference); };
+
+  draw_list->AddRectFilled(ImVec2(0.0f, 0.0f), io.DisplaySize, Fade(theme_.dim, alpha));
+
+  const std::string title = request_.game_display_name;
+  const float title_size = size(kHeaderTextSize);
+  const float icon = size(kIconSize);
+  const float gap = size(kIconGap);
+  const float title_width = TextWidth(title_size, title);
+  const ImVec2 header = at(kPaneX, 96.0f);
+  const ImVec2 icon_center(header.x + icon * 0.5f, header.y + icon * 0.5f);
+
+  rex::ui::ImmediateTexture* info = resources_ ? resources_->Get(kInfoIcon) : nullptr;
+  if (info) {
+    draw_list->AddImage(reinterpret_cast<ImTextureID>(info),
+                        ImVec2(header.x, header.y), ImVec2(header.x + icon, header.y + icon),
+                        ImVec2(0, 0), ImVec2(1, 1), Fade(IM_COL32(255, 255, 255, 255), alpha));
+  } else {
+    draw_list->AddCircleFilled(icon_center, icon * 0.5f, Fade(kInfoDisc, alpha), 32);
+    const float letter = icon * 0.62f;
+    DrawText(draw_list, ImVec2(icon_center.x - TextWidth(letter, "i") * 0.5f,
+                               icon_center.y - letter * 0.62f),
+             letter, Fade(IM_COL32(0xF5, 0xF5, 0xF5, 0xFF), alpha), "i");
+  }
+  const ImVec2 title_at(header.x + icon + gap, header.y - size(2.0f));
+  const float shadow = size(1.0f);
+  DrawText(draw_list, ImVec2(title_at.x + shadow, title_at.y + shadow), title_size,
+           Fade(palette.shadow, alpha), title);
+  DrawText(draw_list, title_at, title_size, Fade(palette.chrome, alpha), title);
+  (void)title_width;
+
+  // The body lines, then the list, inside one pale pane.
+  std::vector<std::string> lines;
+  if (stage_ == Stage::kInstalling) {
+    lines.push_back("Installing from " + disc_image_.filename().string());
+    lines.push_back("This only happens once.");
+  } else if (stage_ == Stage::kFailed) {
+    lines.push_back("That disc image could not be installed.");
+    lines.push_back(installer_.error());
+  } else {
+    lines.push_back(request_.game_display_name + " needs its game files before it can start.");
+    lines.push_back("Select your own Xbox 360 disc image to install them.");
+  }
+  lines.push_back("Installing to " + request_.install_folder.string());
+
+  const float body_size = size(kBodyTextSize);
+  const float line_height = body_size * kLineSpacing;
+  const float pad = size(kPadding);
+  const float text_width = size(kPaneWidth) - pad * 2.0f;
+  for (std::string& line : lines) {
+    line = ElideToWidth(line, body_size, text_width);
+  }
+  const float rows_height =
+      stage_ == Stage::kInstalling ? size(kBarHeight) + line_height : rows_.size() * size(kRowHeight);
+  const float pane_height =
+      pad + lines.size() * line_height + size(kHeaderGap) + rows_height + pad;
+  const ImVec2 pane_min = at(kPaneX, 128.0f);
+  const ImVec2 pane_max(pane_min.x + size(kPaneWidth), pane_min.y + pane_height);
+  draw_list->AddRectFilled(pane_min, pane_max, Fade(kPaneFill, alpha));
+
+  float y = pane_min.y + pad;
+  for (const std::string& line : lines) {
+    DrawText(draw_list, ImVec2(pane_min.x + pad, y), body_size, Fade(kBodyText, alpha), line);
+    y += line_height;
+  }
+  y += size(kHeaderGap);
+
+  if (stage_ == Stage::kInstalling) {
+    const uint64_t total = progress_.total_bytes.load();
+    const uint64_t copied = progress_.copied_bytes.load();
+    const float fraction = total ? float(double(copied) / double(total)) : 0.0f;
+    const ImVec2 bar_min(pane_min.x + pad, y);
+    const ImVec2 bar_max(pane_max.x - pad, y + size(kBarHeight));
+    draw_list->AddRectFilled(bar_min, bar_max, Fade(kRule, alpha));
+    draw_list->AddRectFilled(bar_min, ImVec2(bar_min.x + (bar_max.x - bar_min.x) * fraction,
+                                             bar_max.y),
+                             Fade(kFocus, alpha));
+    const std::string counted =
+        FormatGigabytes(copied) + " / " + (total ? FormatGigabytes(total) : std::string("..."));
+    DrawText(draw_list, ImVec2(bar_min.x, bar_max.y + size(6.0f)), body_size,
+             Fade(kBodyText, alpha), counted);
+    return;
+  }
+
+  const float row_height = size(kRowHeight);
+  const float row_text = size(kRowTextSize);
+  for (size_t i = 0; i < rows_.size(); ++i) {
+    const bool focused = static_cast<int>(i) == selected_;
+    const ImVec2 row_min(pane_min.x + pad, y + i * row_height);
+    const ImVec2 row_max(pane_max.x - pad, row_min.y + row_height);
+    if (focused) {
+      draw_list->AddRectFilled(row_min, row_max, Fade(kFocus, alpha));
+    } else if (i + 1 < rows_.size()) {
+      draw_list->AddRectFilled(ImVec2(row_min.x, row_max.y - size(1.0f)), row_max,
+                               Fade(kRule, alpha));
+    }
+    DrawText(draw_list,
+             ImVec2(row_min.x + size(10.0f), row_min.y + (row_height - row_text) * 0.5f),
+             row_text, Fade(focused ? kRowFocusText : kRowText, alpha), rows_[i].label);
+  }
 }
 
 void DiscInstallDialog::RequestPickedDiscImage() {

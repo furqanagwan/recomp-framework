@@ -10,6 +10,8 @@
 #include <string>
 #include <thread>
 
+#include <vector>
+
 #include <rex/ui/imgui_dialog.h>
 
 #include "recomp/installer/disc_image_installer.h"
@@ -21,6 +23,10 @@ class WindowedAppContext;
 
 namespace recomp {
 
+class GuideResources;
+class HeldKeyMask;
+struct GuideTheme;
+
 struct DiscInstallRequest {
   std::string game_display_name;
   std::filesystem::path install_folder;
@@ -29,6 +35,10 @@ struct DiscInstallRequest {
   std::function<void()> on_quit;
 };
 
+// The screen a title shows when its game files are not there yet, drawn as the
+// console's guide draws a question: the same 852x480 canvas, palette, list rows
+// and sounds as the update prompt beside it, so the first thing a player sees
+// does not look like a different program from the rest.
 class DiscInstallDialog final : public rex::ui::ImGuiDialog {
  public:
   static void Show(rex::ui::ImGuiDrawer* drawer, rex::ui::WindowedAppContext& app_context,
@@ -51,8 +61,16 @@ class DiscInstallDialog final : public rex::ui::ImGuiDialog {
   DiscInstallDialog(rex::ui::ImGuiDrawer* drawer, rex::ui::WindowedAppContext& app_context,
                     DiscInstallRequest request);
 
-  void DrawChooseImage();
-  void DrawInstalling();
+  struct Row {
+    std::string label;
+    std::function<void()> chosen;
+  };
+
+  void DrawScene(ImDrawList* draw_list, ImGuiIO& io);
+  void BuildRows();
+  void HandleInput();
+  void AskForTypedPath();
+  void Quit();
   void RequestPickedDiscImage();
   void BeginInstallIfPicked();
   void FinishInstallIfDone();
@@ -63,6 +81,13 @@ class DiscInstallDialog final : public rex::ui::ImGuiDialog {
   NativeFilePicker file_picker_;
   std::shared_ptr<PendingPick> pending_pick_;
   Stage stage_ = Stage::kChoosingImage;
+  std::vector<Row> rows_;
+  int selected_ = 0;
+  int frames_drawn_ = 0;
+  double opened_at_ = 0.0;
+  std::unique_ptr<HeldKeyMask> held_keys_;
+  std::unique_ptr<GuideResources> resources_;
+  const GuideTheme& theme_;
   std::array<char, 1024> typed_path_{};
   std::filesystem::path disc_image_;
   DiscImageInstaller installer_;
