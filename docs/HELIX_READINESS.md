@@ -35,6 +35,13 @@ does not create a console build.
   future console `TargetDeviceFamily` as required placeholders.
 - All five common test programs are built and registered with CTest.
 
+## Validated public baseline (2026-09-19)
+
+- `rexglue-sdk` commit `5df1952`: 1,686 tests passed and 2 skipped.
+- `recomp-framework` commit `7414511`: all 6 CTest cases and all 22 Python tests passed.
+- The reserved console profile stopped at configuration with the expected secure-toolchain message and produced no mislabeled binary.
+- `skateRecomped` commit `fca1a0d`: Skate 3 configured as `windows_pc`, compiled all 1,101 build steps and linked `Skate 3.exe` against framework `7414511` and SDK `5df1952`.
+- Secure console integration and hardware validation are tracked in [issue #13](https://github.com/furqanagwan/recomp-framework/issues/13).
 ## Console blockers and ownership
 
 | Area | PC implementation today | Console work after secure access |
@@ -82,6 +89,7 @@ cmake -S common -B out/console-gate -DRECOMP_DEPLOYMENT_TARGET=xbox_console
 
 ## Work still tracked publicly
 
+- `recomp-framework#13`: integrate the secure Xbox GDK and validate on Helix hardware.
 - `rexglue-sdk#16`: remove dormant non-GDK and Vulkan source.
 - `recomp-framework#7`: repair Skate 3 screenshot capture.
 - `recomp-framework#8` through `#10`: resolution and asset work.
