@@ -5,7 +5,12 @@ param(
     [switch]$Register,
     [switch]$Unregister,
     [switch]$Pack,
-    [switch]$Install
+    [switch]$Install,
+    # MSIXVC2 is what these ship as: far smaller updates and much faster
+    # packing. It is a GDK preview and cannot be submitted to the Store, which
+    # does not matter here - releases are downloaded from GitHub, not the
+    # Store. -Format msixvc falls back to the older format.
+    [ValidateSet('msixvc2', 'msixvc')][string]$Format = 'msixvc2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,6 +18,10 @@ $repositoryRoot = & (Join-Path $PSScriptRoot 'repository_root.ps1')
 $gameRoot = Join-Path $repositoryRoot $Game
 $gdkBin = Join-Path ${env:ProgramFiles(x86)} 'Microsoft GDK\bin'
 $makepkg = Join-Path $gdkBin 'makepkg.exe'
+$makepkg2 = Join-Path $gdkBin 'makepkg2.exe'
+$packageUtil2 = Join-Path $gdkBin 'packageutil2.exe'
+# Both formats are written as .msixvc; MSIXVC2 differs inside the container.
+$packageExtension = '*.msixvc'
 $wdapp = Join-Path $gdkBin 'wdapp.exe'
 $buildDir = Join-Path $gameRoot "out\build\$Preset"
 $gdkOut = Join-Path $gameRoot 'out\gdk'
@@ -49,15 +58,30 @@ function New-Layout([string]$executableName) {
 
 function New-Package {
     New-Item -ItemType Directory -Force $packageDir | Out-Null
-    Get-ChildItem $packageDir -Filter *.msixvc -ErrorAction SilentlyContinue | Remove-Item -Force
+    Get-ChildItem $packageDir -Filter $packageExtension -ErrorAction SilentlyContinue | Remove-Item -Force
+    if ($Format -eq 'msixvc2') {
+        # MSIXVC2 packs the whole layout into one chunk by default, so there is
+        # no mapping file to generate first. Brotli is applied for transport
+        # and storage and unpacked on the player's machine.
+        & $makepkg2 pack /msixvc2 /pc /d $layout /pd $packageDir
+        if ($LASTEXITCODE -ne 0) { throw "makepkg2 pack failed" }
+        return
+    }
     & $makepkg genmap /f $mapFile /d $layout
     if ($LASTEXITCODE -ne 0) { throw "makepkg genmap failed" }
     & $makepkg pack /f $mapFile /lt /d $layout /nogameos /pc /pd $packageDir
     if ($LASTEXITCODE -ne 0) { throw "makepkg pack failed" }
 }
 
+# packageutil2 can set the MSIXVC2 install opt-in but cannot report it, so
+# there is nothing to check beforehand; the hint goes on the failure instead.
+function Get-Msixvc2Hint {
+    if ($Format -ne 'msixvc2') { return '' }
+    return "`nMSIXVC2 installs must be enabled once per machine. In an elevated prompt run:`n  `"$packageUtil2`" set msixvc2 on"
+}
+
 function Install-Package([string]$identityName) {
-    $package = Get-ChildItem $packageDir -Filter *.msixvc | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $package = Get-ChildItem $packageDir -Filter $packageExtension | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $package) { throw "No package in $packageDir" }
     # wdapp uninstall wants the full name, not the family name: given the latter
     # it prints "Parameter should be a PackageFullName", leaves the package in
@@ -72,7 +96,7 @@ function Install-Package([string]$identityName) {
         }
     }
     & $wdapp install $package.FullName
-    if ($LASTEXITCODE -ne 0) { throw "wdapp install failed" }
+    if ($LASTEXITCODE -ne 0) { throw "wdapp install failed.$(Get-Msixvc2Hint)" }
 }
 
 if (-not (Test-Path $makepkg)) { throw "Microsoft GDK not found (winget install Microsoft.Gaming.GDK)" }
