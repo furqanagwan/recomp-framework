@@ -20,7 +20,7 @@ $layout = Join-Path $gdkOut 'layout'
 $packageDir = Join-Path $gdkOut 'package'
 $mapFile = Join-Path $gdkOut 'layout.xml'
 $gameConfigPath = Join-Path $gameRoot 'gdk\MicrosoftGame.config'
-$shellVisuals = 'StoreLogo.png', 'Logo.png', 'SmallLogo.png', 'SplashScreen.png'
+$shellVisuals = 'StoreLogo.png', 'Logo.png', 'SmallLogo.png', 'LargeLogo.png', 'SplashScreen.png'
 
 function Assert-DeveloperMode {
     $unlock = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -ErrorAction SilentlyContinue

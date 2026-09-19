@@ -668,9 +668,11 @@ void GuideDialog::PlaySoundsFor(const Snapshot& before) {
 }
 
 void GuideDialog::HandleGuideInput() {
-  if (page_ != Page::kExitConfirmation) {
+  if (page_ == Page::kRoot) {
     // Left and right move between tabs like the bumpers, from the keyboard,
-    // the D-pad or the stick.
+    // the D-pad or the stick. The console locks them inside a page - the
+    // bumpers belong to the blades, and a list opened on one keeps the input
+    // until B closes it - so this only reads them on the root screen.
     const bool left = Pressed({ImGuiKey_GamepadL1, ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft,
                                ImGuiKey_GamepadLStickLeft},
                               false);

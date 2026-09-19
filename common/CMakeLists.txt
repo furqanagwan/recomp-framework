@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.25...4.4)
 
+# cmake_minimum_required resets policies for this directory, so the opt-out a
+# consumer made before add_subdirectory does not reach here. CMP0155 NEW turns
+# on C++ module scanning, and clang-scan-deps runs without the compiler's own
+# environment, so it fails on the first standard header it meets. Nothing here
+# uses modules.
+if(POLICY CMP0155)
+    cmake_policy(SET CMP0155 OLD)
+endif()
+
 if(NOT TARGET rex::runtime)
     project(recomp_common LANGUAGES CXX)
     set(CMAKE_CXX_STANDARD 23)

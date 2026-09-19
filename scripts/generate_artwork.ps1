@@ -17,6 +17,7 @@ $shellVisuals = [ordered]@{
     'Logo.png'         = @(150, 150)
     'StoreLogo.png'    = @(100, 100)
     'SmallLogo.png'    = @(44, 44)
+    'LargeLogo.png'    = @(480, 480)
     'SplashScreen.png' = @(1920, 1080)
 }
 
