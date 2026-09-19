@@ -3,6 +3,7 @@
 #include <chrono>
 
 #include <rex/input/input_system.h>
+#include <rex/logging.h>
 #include <rex/system/xtypes.h>
 
 namespace recomp {
