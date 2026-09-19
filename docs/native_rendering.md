@@ -26,7 +26,7 @@ read after a failure.
 
 ## Embedding shaders
 
-Use `recomp_add_shaders` to embed HLSL and committed SPIR-V without adding DXC
+Use `recomp_add_shaders` to embed HLSL and committed DXIL without adding DXC
 to ordinary player builds. See the shader section in `CONTRIBUTING.md` for the
 CMake call and regeneration command.
 

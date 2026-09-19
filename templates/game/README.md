@@ -55,8 +55,7 @@ Region list from [Redump](http://redump.org/discs/system/xbox360/).
 | Boot | Not yet tested |
 | Controller input, gameplay | Not yet tested |
 | DLC | Installer in place; no packages tested |
-| Xbox PC app (GDK desktop) | Packaged and registers |
-| Linux, macOS, Steam Deck | Builds expected, not play-tested |
+| Windows GDK / Project Helix | Configured; hardware validation pending |
 
 ## Play
 

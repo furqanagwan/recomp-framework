@@ -4,7 +4,7 @@ Shared framework for native PC static recompilations of Xbox 360 games built on
 [ReXGlue](https://github.com/rexglue/rexglue-sdk). It is what turns a game's
 recompiled code into an app a player can run from their own disc image: first-run
 ISO install, DLC install, controller-driven system and settings menus, portable
-mode and Xbox PC app packaging.
+mode, and Windows GDK packaging for Xbox mode and Project Helix.
 
 Used by:
 
@@ -54,7 +54,6 @@ Scripts are run from the game repository root and find it automatically
 
 ```
 .\framework\scripts\build.ps1 -Game <GameFolder>
-./framework/scripts/build.sh <GameFolder>
 ```
 
 Adding a game, the codegen workflow and artwork are described in
@@ -73,7 +72,7 @@ pin and verify that exact package; see [TITLE_UPDATES.md](TITLE_UPDATES.md).
 | First run | If `default.xex` is missing, a setup window asks for the player's Xbox 360 ISO and extracts it once. Unattended: `RECOMP_INSTALL_ISO=<iso>` |
 | DLC | Packages in the `dlc` folder next to the executable are installed on start. Unattended: `RECOMP_INSTALL_DLC=<package or folder>` |
 | System menu | **View + Menu** or **Esc**: Resume, Settings, Exit Game |
-| Controllers | Xbox, PlayStation, Switch and Steam Deck through SDL; all drive player 1 unless `recomp_shared_controllers = false` |
+| Controllers | Xbox, PlayStation and Switch-compatible controllers through SDL; all drive player 1 unless `recomp_shared_controllers = false` |
 | Portable mode | An empty `portable.txt` next to the executable keeps saves, cache and settings beside it |
 
 ## ReXGlue fork
@@ -89,6 +88,7 @@ is upstream ReXGlue plus:
 - gpu/d3d12: issued draws feed the debug overlay counter
 - kernel: 64-bit export arguments (XUIDs, file times) are no longer truncated,
   which broke NBA LIVE 10 profile saves
+- platform: Windows GDK AMD64 as the baseline for Xbox mode and Project Helix
 - system: repeated export lookups reuse their thunk (upstream #420)
 - filesystem: relative guest paths resolve against `game:` (upstream #405)
 - upstream PRs #422, #423, #424 (Windows clone and install build fixes),

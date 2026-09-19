@@ -27,7 +27,7 @@ void GuideDialog::BuildSettings() {
          {{"gameinput", "GameInput"}, {"sdl", "SDL"}, {"xinput", "XInput"}},
          "GameInput is Microsoft's current API and reports charge; it needs the GameInput "
          "runtime, and falls back to XInput without it. SDL also supports PlayStation, "
-         "Switch and Steam Deck pads."},
+         "Switch and other SDL-compatible pads."},
         {"Shared controllers", "recomp_shared_controllers", toggle,
          "On: all controllers control player 1. Turn off for local multiplayer."},
         {"Guide button", "recomp_guide_button_opens_guide", toggle,
@@ -55,13 +55,8 @@ void GuideDialog::BuildSettings() {
         {"Anti-aliasing", "swap_post_effect",
          {{"none", "Off"}, {"fxaa", "FXAA"}, {"fxaa_extreme", "FXAA (extreme)"}},
          "Smooth jagged edges in the final image."},
-#if defined(_WIN32)
         {"Render targets", "render_target_path_d3d12",
          {{"rov", "Accurate (ROV)"}, {"rtv", "Fast (RTV)"}, {"", "SDK default"}},
-#else
-        {"Render targets", "render_target_path_vulkan",
-         {{"fsi", "Accurate (FSI)"}, {"fbo", "Fast"}, {"", "SDK default"}},
-#endif
          "Fast render targets can leave some scenes black after pausing."},
     };
     if (NativeRenderer::IsAvailable()) {

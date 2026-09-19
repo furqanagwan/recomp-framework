@@ -19,7 +19,7 @@ foreach(include_dir IN LISTS SHADER_INCLUDE_DIRS)
     list(APPEND include_args -I "${include_dir}")
 endforeach()
 
-# The same compiler and profile the SPIR-V is built with, so the two backends
+# Shader model 6 DXIL is the sole native-renderer bytecode target, so all stages
 # run the same shader. D3D12 will not load unsigned DXIL, and dxc signs what it
 # emits, which is why this has to be the real dxc rather than a reimplementation.
 execute_process(

@@ -29,13 +29,7 @@ links here from its own `CONTRIBUTING.md`.
 2. Install [LLVM/Clang](https://github.com/llvm/llvm-project/releases) 18 or later,
    [CMake](https://cmake.org/download/) 3.25+, [Ninja](https://ninja-build.org/)
    and [Python](https://www.python.org/) 3.11+ (for the analysis scripts).
-3. Optional: the [Microsoft GDK](https://github.com/microsoft/GDK) for Xbox PC app
-   packaging.
-
-### Linux and Steam Deck
-
-Clang 20, CMake, Ninja and the Vulkan, GTK, Wayland and audio development
-packages; `.github/workflows/common.yml` lists the exact apt packages.
+3. Install the current [Microsoft GDK](https://github.com/microsoft/GDK) for Xbox mode and Project Helix packaging.
 
 ### Clone and install the SDK
 
@@ -48,9 +42,7 @@ cmake --install out/build/win-amd64 --config Release
 ```
 
 Games find the installed SDK at `C:\ReXGlue`. To build against the submodule
-source instead, pass `-SdkDir framework\thirdparty\rexglue-sdk` to `build.ps1`
-(or set `REXSDK_DIR` for `build.sh`). The UWP flavour installs to
-`C:\ReXGlue-UWP` with `--preset win-amd64-uwp`.
+source instead, pass `-SdkDir framework\thirdparty\rexglue-sdk` to `build.ps1`.
 
 ## Building a game
 
@@ -60,7 +52,6 @@ repository root:
 ```
 rexglue extract "<your disc>.iso" <GAME>\assets
 .\framework\scripts\build.ps1 -Game <GAME>
-./framework/scripts/build.sh <GAME>
 ```
 
 The first build runs codegen from `assets\default.xex`, which takes a few
@@ -278,9 +269,8 @@ recomp_add_shaders(skate_3
 
 The normal build needs no shader compiler. It recursively expands quoted HLSL
 includes and generates `<target>_shaders.h` in the target's include path. Each
-shader is an `EmbeddedShader` containing `hlsl` as a `std::string_view`, `spirv`
-as a `std::span<const uint32_t>`, `dxil` as a `std::span<const uint8_t>`, and
-`entry_point`. The identifier is the source path converted to a C++ identifier.
+shader is an `EmbeddedShader` containing `hlsl` as a `std::string_view`, `dxil`
+as a `std::span<const uint8_t>`, and `entry_point`. The identifier is the source path converted to a C++ identifier.
 For example:
 
 ```cpp
@@ -290,11 +280,9 @@ using namespace recomp::shaders::skate_3;
 const auto& shader = shaders_scene_vs_hlsl;
 ```
 
-Both backends' bytecode lives beside the source: `scene.vs.hlsl` uses the
-committed `scene.vs.spv` and `scene.vs.dxil`. DXC builds both, at the same
-`_6_0` profile, so the two backends run the same shader rather than the same
-text through two compilers. After changing HLSL, regenerate them explicitly and
-commit both:
+The compiled bytecode lives beside the source: `scene.vs.hlsl` uses the committed
+`scene.vs.dxil`. DXC builds shader model 6 DXIL. After changing HLSL, regenerate
+the bytecode explicitly and commit it:
 
 ```powershell
 cmake --build out/build/win-amd64-release --target skate_3_shaders
@@ -305,14 +293,8 @@ at configure time when it is elsewhere. Editing an HLSL file or any `.hlsli`
 below an include directory regenerates the embedded header on the next ordinary
 build.
 
-One compiler will not do: **the `dxc.exe` that ships in the Windows SDK is built
-without SPIR-V**, and it is the one found on `PATH` on a machine with no Vulkan
-SDK. The DXIL half works with it and the SPIR-V half cannot. Install the Vulkan
-SDK, or a DirectX Shader Compiler release from Microsoft's GitHub, and point
-`RECOMP_DXC_EXECUTABLE` at that one. The build says so rather than failing per
-shader.
-
-The normal build needs neither compiler, only the committed bytecode.
+The maintenance target looks for a DirectX Shader Compiler `dxc` on `PATH`. The
+normal build needs no compiler, only the committed DXIL.
 
 ### Games with DLL modules
 
@@ -387,7 +369,7 @@ epic rather than in each issue.
   (branch `main`). Prefer fixes that are behaviour-preserving for existing
   games, and send generally useful ones upstream to
   [rexglue/rexglue-sdk](https://github.com/rexglue/rexglue-sdk) as well.
-- CI (`.github/workflows/common.yml`) builds `recomp_common` on Linux for every
+- CI (`.github/workflows/common.yml`) builds `recomp_common` on Windows for every
   push. Games can't be built in CI because codegen needs the game's executable.
 
 ## Releases

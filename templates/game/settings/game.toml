@@ -16,5 +16,4 @@ swap_post_effect = "none"
 d3d12_pipeline_creation_threads = 0
 async_shader_compilation = false
 render_target_path_d3d12 = "rov"
-render_target_path_vulkan = "fsi"
 gpu_allow_invalid_fetch_constants = true

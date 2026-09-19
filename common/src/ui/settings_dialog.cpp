@@ -32,10 +32,8 @@ constexpr std::array<Choice, 3> kAntiAliasing = {
     {{"none", "Off"}, {"fxaa", "FXAA"}, {"fxaa_extreme", "FXAA (extreme)"}}};
 constexpr std::array<Choice, 3> kD3D12RenderTargets = {
     {{"rov", "Accurate (ROV)"}, {"rtv", "Fast (RTV)"}, {"", "SDK default"}}};
-constexpr std::array<Choice, 3> kVulkanRenderTargets = {
-    {{"fsi", "Accurate (FSI)"}, {"fbo", "Fast"}, {"", "SDK default"}}};
 constexpr std::array<Choice, 2> kInputBackends = {
-    {{"sdl", "SDL (Xbox, PlayStation, Switch, Steam Deck)"}, {"xinput", "XInput (Xbox only)"}}};
+    {{"sdl", "SDL (Xbox, PlayStation, Switch)"}, {"xinput", "XInput (Xbox only)"}}};
 
 bool CheckboxForCvar(const char* label, std::string_view cvar) {
   bool value = rex::cvar::Query<bool>(cvar);
@@ -151,11 +149,7 @@ void SettingsDialog::DrawVideoTab() {
   ImGui::TextDisabled("(game speed is tied to 60 Hz)");
   ComboForCvar("Render resolution", "resolution_scale", kResolutionScales);
   ComboForCvar("Anti-aliasing", "swap_post_effect", kAntiAliasing);
-#if defined(_WIN32)
   ComboForCvar("Render targets", "render_target_path_d3d12", kD3D12RenderTargets);
-#else
-  ComboForCvar("Render targets", "render_target_path_vulkan", kVulkanRenderTargets);
-#endif
   ImGui::TextDisabled("Fast render targets can leave some scenes black after pausing.");
   if (NativeRenderer::IsAvailable()) {
     bool enabled = NativeRenderer::IsEnabled();
@@ -176,7 +170,7 @@ void SettingsDialog::DrawControlsTab() {
   ImGui::TextDisabled("System menu: press View + Menu together, or Esc.");
   CheckboxForCvar("Guide button also opens the system menu", "guide_button");
   ImGui::TextWrapped(
-      "Leave off on Windows, Xbox mode and Steam Deck, where the system uses that button.");
+      "Leave off when Xbox mode reserves that button for the system.");
 }
 
 void SettingsDialog::DrawGameFilesTab() {

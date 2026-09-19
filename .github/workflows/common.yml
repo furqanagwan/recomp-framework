@@ -7,36 +7,26 @@ on:
       - "cmake/**"
       - "thirdparty/**"
       - ".github/workflows/common.yml"
-  workflow_dispatch:
-    inputs:
-      macos:
-        description: "Also build on macOS"
-        type: boolean
-        default: false
+  workflow_dispatch: {}
 
 jobs:
-  linux:
-    runs-on: ubuntu-24.04
+  windows-gdk:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      - uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install toolchain
-        run: |
-          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s 20
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-20 lld-20 pkg-config \
-            libgtk-3-dev libx11-xcb-dev libxss-dev libvulkan-dev \
-            libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
-            libasound2-dev libpulse-dev libpipewire-0.3-dev libudev-dev
+        run: choco install llvm cmake ninja -y
 
       - name: Configure
         run: >
           cmake -S common -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20
-          -DCMAKE_C_FLAGS=-march=x86-64-v2 -DCMAKE_CXX_FLAGS=-march=x86-64-v2
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
           -DRECOMP_BUILD_TESTS=ON
           -DREXSDK_DIR=${{ github.workspace }}/thirdparty/rexglue-sdk
 
@@ -46,33 +36,4 @@ jobs:
           recomp_safe_guest_read_test recomp_native_renderer_test
 
       - name: Test
-        run: ctest --test-dir build -R "recomp\\.(safe_guest_read|native_renderer)" --output-on-failure
-
-  macos:
-    if: github.event_name == 'workflow_dispatch' && inputs.macos
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install toolchain
-        run: brew install cmake ninja vulkan-loader molten-vk
-
-      - name: Configure
-        run: >
-          cmake -S common -B build -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=/usr/bin/clang
-          -DCMAKE_CXX_COMPILER=/usr/bin/clang++
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3
-          -DRECOMP_BUILD_TESTS=ON
-          -DREXSDK_DIR=${{ github.workspace }}/thirdparty/rexglue-sdk
-
-      - name: Build
-        run: >
-          cmake --build build --target
-          recomp_safe_guest_read_test recomp_native_renderer_test
-
-      - name: Test
-        run: ctest --test-dir build -R "recomp\\.(safe_guest_read|native_renderer)" --output-on-failure
+        run: ctest --test-dir build -R "recomp\.(safe_guest_read|native_renderer)" --output-on-failure

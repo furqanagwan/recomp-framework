@@ -40,8 +40,7 @@ bool RenderProbeFrame(const rex::graphics::NativeGuestOutputRenderContext& conte
   if (frame == 0) {
     REXLOG_INFO("native render probe: first frame {}x{} on {}", context.guest_output_width,
                 context.guest_output_height,
-                context.backend == rex::graphics::NativeGuestOutputBackend::kD3D12 ? "D3D12"
-                                                                                  : "Vulkan");
+                "D3D12");
   }
 
   const float phase = static_cast<float>(frame % 360) * (6.2831853f / 360.0f);

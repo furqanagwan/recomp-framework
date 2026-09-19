@@ -17,7 +17,7 @@ FIRST RUN
 
 CONTROLS
 --------
-- Xbox, PlayStation, Switch and Steam Deck controllers work out of the box.
+- Xbox, PlayStation and Switch-compatible controllers work out of the box.
 - System menu (Resume, Settings, Exit Game): press View + Menu together, or Esc.
 
 DLC
