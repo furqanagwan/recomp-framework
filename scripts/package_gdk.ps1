@@ -59,8 +59,18 @@ function New-Package {
 function Install-Package([string]$identityName) {
     $package = Get-ChildItem $packageDir -Filter *.msixvc | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $package) { throw "No package in $packageDir" }
+    # wdapp uninstall wants the full name, not the family name: given the latter
+    # it prints "Parameter should be a PackageFullName", leaves the package in
+    # place, and the install that follows fails with 0x80073cfb because the
+    # package is still there. It says so on stdout rather than in its exit code,
+    # so the removal is checked by looking again.
     $installed = Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue
-    if ($installed) { & $wdapp uninstall $installed.PackageFamilyName }
+    if ($installed) {
+        & $wdapp uninstall $installed.PackageFullName
+        if (Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue) {
+            throw "Could not remove the installed $identityName. A layout registered with -Register is removed with -Unregister."
+        }
+    }
     & $wdapp install $package.FullName
     if ($LASTEXITCODE -ne 0) { throw "wdapp install failed" }
 }
