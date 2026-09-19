@@ -23,8 +23,11 @@ void GuideDialog::BuildSettings() {
   setting_rows_.clear();
   if (settings_section_ == "controls") {
     setting_rows_ = {
-        {"Controller backend", "input_backend", {{"sdl", "SDL"}, {"xinput", "XInput"}},
-         "SDL supports Xbox, PlayStation, Switch and Steam Deck controllers."},
+        {"Controller backend", "input_backend",
+         {{"gameinput", "GameInput"}, {"sdl", "SDL"}, {"xinput", "XInput"}},
+         "GameInput is Microsoft's current API and reports charge; it needs the GameInput "
+         "runtime, and falls back to XInput without it. SDL also supports PlayStation, "
+         "Switch and Steam Deck pads."},
         {"Shared controllers", "recomp_shared_controllers", toggle,
          "On: all controllers control player 1. Turn off for local multiplayer."},
         {"Guide button", "recomp_guide_button_opens_guide", toggle,
