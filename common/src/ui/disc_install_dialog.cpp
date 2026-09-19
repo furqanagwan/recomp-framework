@@ -58,9 +58,16 @@ constexpr float kBarHeight = 6.0f;
 
 // Up, down, A and B, plus their keyboard equivalents - the same set the update
 // prompt watches, so a key held from a previous screen does not carry through.
+// This is the first screen a player ever reaches, before any of the game's own
+// controls are explained, so it takes the spellings someone is likely to try
+// without being told: the arrow cluster, the numpad's arrows (which arrive as
+// Keypad2/Keypad8 rather than the arrows when Num Lock is off), W and S, and
+// Space as well as Enter to choose.
 constexpr ImGuiKey kWatchedKeys[] = {
-    ImGuiKey_DownArrow,        ImGuiKey_UpArrow,          ImGuiKey_Enter,
-    ImGuiKey_KeypadEnter,      ImGuiKey_Escape,           ImGuiKey_GamepadDpadDown,
+    ImGuiKey_DownArrow,        ImGuiKey_UpArrow,          ImGuiKey_Keypad2,
+    ImGuiKey_Keypad8,          ImGuiKey_S,                ImGuiKey_W,
+    ImGuiKey_Enter,            ImGuiKey_KeypadEnter,      ImGuiKey_Space,
+    ImGuiKey_Escape,           ImGuiKey_GamepadDpadDown,
     ImGuiKey_GamepadDpadUp,    ImGuiKey_GamepadLStickDown, ImGuiKey_GamepadLStickUp,
     ImGuiKey_GamepadFaceDown,  ImGuiKey_GamepadFaceRight,
 };
@@ -217,19 +224,22 @@ void DiscInstallDialog::HandleInput() {
   }
   const int before = selected_;
   const int count = static_cast<int>(rows_.size());
-  if (held_keys_->Pressed(
-          {ImGuiKey_DownArrow, ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadLStickDown}, true)) {
+  if (held_keys_->Pressed({ImGuiKey_DownArrow, ImGuiKey_Keypad2, ImGuiKey_S,
+                           ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadLStickDown},
+                          true)) {
     selected_ = std::min(selected_ + 1, count - 1);
   }
-  if (held_keys_->Pressed({ImGuiKey_UpArrow, ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp},
+  if (held_keys_->Pressed({ImGuiKey_UpArrow, ImGuiKey_Keypad8, ImGuiKey_W,
+                           ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadLStickUp},
                           true)) {
     selected_ = std::max(selected_ - 1, 0);
   }
   if (selected_ != before) {
     GuideSounds::Get().Play(GuideSounds::Cue::kFocus);
   }
-  if (held_keys_->Pressed({ImGuiKey_Enter, ImGuiKey_KeypadEnter, ImGuiKey_GamepadFaceDown},
-                          false)) {
+  if (held_keys_->Pressed(
+          {ImGuiKey_Enter, ImGuiKey_KeypadEnter, ImGuiKey_Space, ImGuiKey_GamepadFaceDown},
+          false)) {
     GuideSounds::Get().Play(GuideSounds::Cue::kSelect);
     rows_[selected_].chosen();
     return;
