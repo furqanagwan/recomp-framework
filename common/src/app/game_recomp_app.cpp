@@ -112,6 +112,7 @@ std::optional<rex::PathConfig> GameRecompApp::OnFinalizePaths(
     return FinalizeTitleUpdatePaths(std::move(paths), std::move(resume));
   }
   REXLOG_INFO("Game files not found at {}", game_data_root_.string());
+  StartSetupInput();
   if (rex::platform::env::get(kUnattendedInstallVariable)) {
     if (!InstallFromEnvironment(game_data_root_)) {
       app_context().QuitFromUIThread();
@@ -178,6 +179,7 @@ std::optional<rex::PathConfig> GameRecompApp::FinalizeTitleUpdatePaths(
   // build is recompiled from the update's code, so there is nothing to fall back
   // to inside it; a release that also ships the disc-compiled executable sets
   // can_play_without_update and the launcher starts that one instead.
+  StartSetupInput();
   UpdateRequiredDialog::Show(
       imgui_drawer(), app_context(),
       UpdateRequiredRequest{
@@ -260,6 +262,7 @@ void GameRecompApp::OnPostSetup() {
                            app_context().CallInUIThreadDeferred(std::move(work));
                          },
                  });
+  StopSetupInput();
   menu_watcher_.Start(static_cast<rex::input::InputSystem*>(runtime()->input_system()),
                       &app_context(), [this] { guide_.Open("View + Menu"); });
 }
@@ -303,6 +306,34 @@ bool GameRecompApp::InstallFromEnvironment(const std::filesystem::path& game_roo
   }
   REXLOG_ERROR("Unattended install failed: {}", installer.error());
   return false;
+}
+
+void GameRecompApp::StartSetupInput() {
+  if (setup_input_) {
+    return;
+  }
+  auto input = rex::input::CreateDefaultInputSystem(/*tool_mode=*/false);
+  if (!input || !XSUCCEEDED(input->Setup())) {
+    REXLOG_WARN("Setup screens: no input system, so these screens are keyboard only");
+    return;
+  }
+  if (auto* game_window = window()) {
+    input->AttachWindow(game_window);
+  }
+  setup_input_ = std::move(input);
+  GuestInputGate::Install(setup_input_.get());
+}
+
+void GameRecompApp::StopSetupInput() {
+  if (!setup_input_) {
+    return;
+  }
+  // The gate is about to be pointed at the runtime's input system, so drop
+  // this one first: two of them polling the same pad is one too many, and the
+  // drivers hold the device open.
+  GuestInputGate::Uninstall();
+  setup_input_->Shutdown();
+  setup_input_.reset();
 }
 
 void GameRecompApp::InstallContentPackages() {

@@ -2,9 +2,12 @@
 
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
 
 #include <rex/rex_app.h>
+
+#include <rex/input/input_system.h>
 
 #include "recomp/app/game_descriptor.h"
 #include "recomp/app/game_paths.h"
@@ -47,6 +50,14 @@ class GameRecompApp : public rex::ReXApp {
 
   GameDescriptor descriptor_;
   rex::PPCImageInfo image_info_;
+  // The runtime owns the input system, and it does not exist until the paths
+  // are settled - which is exactly when the disc picker is on screen. These
+  // screens get one of their own so a controller works on them, handed back
+  // before the runtime brings up the real one.
+  void StartSetupInput();
+  void StopSetupInput();
+
+  std::unique_ptr<rex::input::InputSystem> setup_input_;
   GamePaths paths_;
   std::filesystem::path game_data_root_;
   GamingRuntimeSession gaming_runtime_;
