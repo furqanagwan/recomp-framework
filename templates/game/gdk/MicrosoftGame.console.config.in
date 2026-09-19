@@ -1,36 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Console packaging input only. The secure Xbox GDK and Partner Center supply
+  the real identity and TargetDeviceFamily. Never guess or publish those values.
+-->
 <Game configVersion="1">
-  <Identity Name="@IDENTITY_NAME@"
-            Publisher="CN=@PUBLISHER@"
-            Version="1.0.0.0"/>
-
+  <Identity Name="@PARTNER_CENTER_IDENTITY_NAME@"
+            Publisher="@PARTNER_CENTER_PUBLISHER@"
+            Version="@PACKAGE_VERSION@"/>
   <Resources>
     <Resource Language="en-US"/>
   </Resources>
-
   <ExecutableList>
     <Executable Name="@EXECUTABLE_NAME@.exe"
                 Id="Game"
-                Alias="@IDENTITY_ALIAS@.exe"
+                Alias="@PARTNER_CENTER_IDENTITY_ALIAS@.exe"
                 OverrideDisplayName="@DISPLAY_NAME@"
-                TargetDeviceFamily="PC"/>
+                TargetDeviceFamily="@XBOX_TARGET_DEVICE_FAMILY@"/>
   </ExecutableList>
-
   <ShellVisuals DefaultDisplayName="@DISPLAY_NAME@"
-                PublisherDisplayName="@PUBLISHER@"
+                PublisherDisplayName="@PARTNER_CENTER_PUBLISHER_DISPLAY_NAME@"
                 StoreLogo="StoreLogo.png"
                 Square150x150Logo="Logo.png"
                 Square44x44Logo="SmallLogo.png"
                 Square480x480Logo="LargeLogo.png"
                 SplashScreenImage="SplashScreen.png"
-                Description="@LABEL@, first released on Xbox 360 in @RELEASE_YEAR@. Native PC recompilation of the Xbox 360 version; runs from your own copy of the game."
+                Description="@DESCRIPTION@"
                 BackgroundColor="#000000"
                 ForegroundText="light"/>
-
-  <DesktopRegistration>
-    <DependencyList>
-      <KnownDependency Name="VC14"/>
-    </DependencyList>
-    <ProcessorArchitecture>x64</ProcessorArchitecture>
-  </DesktopRegistration>
 </Game>

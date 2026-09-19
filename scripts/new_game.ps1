@@ -47,6 +47,7 @@ $destinations = @{
     'config\codegen.toml'      = 'config\codegen.toml'
     'config\functions.toml'    = 'config\functions.toml'
     'gdk\MicrosoftGame.config' = 'gdk\MicrosoftGame.config'
+    'gdk\MicrosoftGame.console.config.in' = 'gdk\MicrosoftGame.console.config.in'
     'resources\game.rc'        = "resources\$ProjectName.rc"
     'README.md'                = 'README.md'
     'release.json'             = 'release.json'

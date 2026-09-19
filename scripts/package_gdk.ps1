@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory)][string]$Game,
     [string]$Preset = "win-amd64-release",
     [string]$VisualsDir = "metadata\gdk_hd",
+    [ValidateSet('pc', 'xbox_console')][string]$DeploymentTarget = 'pc',
     [switch]$Register,
     [switch]$Unregister,
     [switch]$Pack,
@@ -14,13 +15,16 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($DeploymentTarget -eq 'xbox_console') {
+    throw "Console XVC packaging requires the secure Xbox GDK, Partner Center identity and Microsoft-provided TargetDeviceFamily. See framework/docs/HELIX_READINESS.md. This public script will not guess those values or reuse the PC /pc flags."
+}
 $repositoryRoot = & (Join-Path $PSScriptRoot 'repository_root.ps1')
 $gameRoot = Join-Path $repositoryRoot $Game
 $gdkBin = Join-Path ${env:ProgramFiles(x86)} 'Microsoft GDK\bin'
 $makepkg = Join-Path $gdkBin 'makepkg.exe'
 $makepkg2 = Join-Path $gdkBin 'makepkg2.exe'
 $packageUtil2 = Join-Path $gdkBin 'packageutil2.exe'
-# Both formats are written as .msixvc; MSIXVC2 differs inside the container.
+# PC formats are written as .msixvc; MSIXVC2 differs inside the container.
 $packageExtension = '*.msixvc'
 $wdapp = Join-Path $gdkBin 'wdapp.exe'
 $buildDir = Join-Path $gameRoot "out\build\$Preset"

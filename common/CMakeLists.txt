@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.25...4.4)
 
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/RecompTarget.cmake")
+
 # cmake_minimum_required resets policies for this directory, so the opt-out a
 # consumer made before add_subdirectory does not reach here. CMP0155 NEW turns
 # on C++ module scanning, and clang-scan-deps runs without the compiler's own
@@ -60,9 +62,17 @@ if(NOT WIN32)
     message(FATAL_ERROR "recomp-framework supports the Windows GDK / Project Helix target only")
 endif()
 
-target_sources(recomp_common PRIVATE src/platform/native_file_picker_windows.cpp
-                                     src/platform/http_download_windows.cpp
-                                     src/platform/application_restart_windows.cpp)
+if(RECOMP_DEPLOYMENT_TARGET STREQUAL "windows_pc")
+    target_sources(recomp_common PRIVATE src/platform/native_file_picker_windows.cpp
+                                         src/platform/http_download_windows.cpp
+                                         src/platform/application_restart_windows.cpp)
+    target_compile_definitions(recomp_common PUBLIC RECOMP_TARGET_WINDOWS_PC=1)
+else()
+    target_sources(recomp_common PRIVATE src/platform/native_file_picker_console.cpp
+                                         src/platform/http_download_console.cpp
+                                         src/platform/application_restart_console.cpp)
+    target_compile_definitions(recomp_common PUBLIC RECOMP_TARGET_XBOX_CONSOLE=1)
+endif()
 
 add_library(recomp::common ALIAS recomp_common)
 target_compile_features(recomp_common PUBLIC cxx_std_23)
@@ -80,6 +90,15 @@ if(RECOMP_BUILD_TESTS)
     add_test(NAME recomp.native_renderer_fallback COMMAND recomp_native_renderer_test)
     add_test(NAME recomp.native_renderer_exception_fallback
              COMMAND recomp_native_renderer_test exception)
+    add_executable(recomp_guide_navigation_test tests/guide_navigation_test.cpp)
+    target_link_libraries(recomp_guide_navigation_test PRIVATE recomp::common)
+    add_test(NAME recomp.guide_navigation COMMAND recomp_guide_navigation_test)
+    add_executable(recomp_virtual_keyboard_test tests/virtual_keyboard_test.cpp)
+    target_link_libraries(recomp_virtual_keyboard_test PRIVATE recomp::common)
+    add_test(NAME recomp.virtual_keyboard COMMAND recomp_virtual_keyboard_test)
+    add_executable(recomp_xboxunity_catalog_test tests/xboxunity_catalog_test.cpp)
+    target_link_libraries(recomp_xboxunity_catalog_test PRIVATE recomp::common)
+    add_test(NAME recomp.xboxunity_catalog COMMAND recomp_xboxunity_catalog_test)
 endif()
 
 if(TARGET imgui)

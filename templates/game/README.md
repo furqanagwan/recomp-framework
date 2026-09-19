@@ -55,7 +55,7 @@ Region list from [Redump](http://redump.org/discs/system/xbox360/).
 | Boot | Not yet tested |
 | Controller input, gameplay | Not yet tested |
 | DLC | Installer in place; no packages tested |
-| Windows GDK / Project Helix | Configured; hardware validation pending |
+| Windows GDK PC | Configured; the Helix console profile requires secure SDK access and hardware validation |
 
 ## Play
 

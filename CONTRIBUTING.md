@@ -29,7 +29,7 @@ links here from its own `CONTRIBUTING.md`.
 2. Install [LLVM/Clang](https://github.com/llvm/llvm-project/releases) 18 or later,
    [CMake](https://cmake.org/download/) 3.25+, [Ninja](https://ninja-build.org/)
    and [Python](https://www.python.org/) 3.11+ (for the analysis scripts).
-3. Install the current [Microsoft GDK](https://github.com/microsoft/GDK) for Xbox mode and Project Helix packaging.
+3. Install the current [public Microsoft GDK](https://github.com/microsoft/GDK) for Windows PC packaging. Native console work additionally requires Microsoft's secure Xbox GDK and partner access; see [Project Helix readiness](docs/HELIX_READINESS.md).
 
 ### Clone and install the SDK
 
@@ -43,6 +43,13 @@ cmake --install out/build/win-amd64 --config Release
 
 Games find the installed SDK at `C:\ReXGlue`. To build against the submodule
 source instead, pass `-SdkDir framework\thirdparty\rexglue-sdk` to `build.ps1`.
+
+### Deployment target
+
+`RECOMP_DEPLOYMENT_TARGET=windows_pc` is the supported public profile and is set
+by every game preset. `xbox_console` is a reserved integration point: configuration
+stops until a secure Xbox toolchain deliberately enables it. This prevents a normal
+Win32 executable from being mistaken for a Project Helix console build.
 
 ## Building a game
 

@@ -4,7 +4,8 @@ Shared framework for native PC static recompilations of Xbox 360 games built on
 [ReXGlue](https://github.com/rexglue/rexglue-sdk). It is what turns a game's
 recompiled code into an app a player can run from their own disc image: first-run
 ISO install, DLC install, controller-driven system and settings menus, portable
-mode, and Windows GDK packaging for Xbox mode and Project Helix.
+mode, and Windows GDK PC packaging. The PC build is the public foundation for a future
+Project Helix console port; see [Project Helix readiness](docs/HELIX_READINESS.md).
 
 Used by:
 
@@ -88,7 +89,7 @@ is upstream ReXGlue plus:
 - gpu/d3d12: issued draws feed the debug overlay counter
 - kernel: 64-bit export arguments (XUIDs, file times) are no longer truncated,
   which broke NBA LIVE 10 profile saves
-- platform: Windows GDK AMD64 as the baseline for Xbox mode and Project Helix
+- platform: Windows GDK PC AMD64 as the tested baseline for a future Project Helix port
 - system: repeated export lookups reuse their thunk (upstream #420)
 - filesystem: relative guest paths resolve against `game:` (upstream #405)
 - upstream PRs #422, #423, #424 (Windows clone and install build fixes),
