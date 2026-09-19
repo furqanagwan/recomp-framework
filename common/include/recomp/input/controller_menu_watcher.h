@@ -52,6 +52,9 @@ class GuestInputGate {
   static bool AnyMenuVisible();
   static void ReleaseIfControllerIdle(const rex::input::X_INPUT_GAMEPAD& gamepad);
   static bool ReadControllerForMenu(rex::input::X_INPUT_GAMEPAD& gamepad);
+  // The charge in player one's pad, for the guide's indicator. False when
+  // there is no pad, none of the drivers report a battery, or it is wired.
+  static bool ReadBatteryForMenu(rex::input::X_INPUT_BATTERY_INFORMATION& battery);
 };
 
 }  // namespace recomp

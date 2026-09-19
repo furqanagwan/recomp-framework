@@ -198,6 +198,7 @@ void XboxGuide::Open(std::string_view reason) {
                        },
                    .achievements = actions_.achievements,
                    .runtime = actions_.runtime,
+                   .dlc = actions_.dlc,
                });
   // Tell the title system UI is up, as a console does while the Guide shows.
   rex::kernel::xam::SetSystemUiActive(true);

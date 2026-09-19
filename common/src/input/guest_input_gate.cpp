@@ -121,4 +121,21 @@ bool GuestInputGate::ReadControllerForMenu(rex::input::X_INPUT_GAMEPAD& gamepad)
   return true;
 }
 
+bool GuestInputGate::ReadBatteryForMenu(rex::input::X_INPUT_BATTERY_INFORMATION& battery) {
+  auto* input = g_input_system.load();
+  if (!input) {
+    return false;
+  }
+  rex::input::X_INPUT_BATTERY_INFORMATION read{};
+  t_reading_for_menu = true;
+  const auto result = input->GetBatteryInformation(kPrimaryUser, 0, &read);
+  t_reading_for_menu = false;
+  if (result != X_ERROR_SUCCESS ||
+      read.type == rex::input::X_INPUT_BATTERY_TYPE_DISCONNECTED) {
+    return false;
+  }
+  battery = read;
+  return true;
+}
+
 }  // namespace recomp

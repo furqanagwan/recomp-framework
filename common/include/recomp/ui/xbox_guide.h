@@ -5,6 +5,7 @@
 #include <string>
 
 #include <rex/kernel/xam/system_ui.h>
+#include "recomp/app/game_descriptor.h"
 #include "recomp/ui/settings_dialog.h"
 
 namespace rex {
@@ -52,6 +53,8 @@ class XboxGuide {
     rex::system::AchievementManager* achievements = nullptr;
     // For achievement icons that live in the title's XDBF.
     rex::Runtime* runtime = nullptr;
+    // The content this title can have, listed on the guide's own page.
+    std::vector<DlcDescriptor> dlc;
     // Runs a callback on the UI thread: a game can ask for the guide from any
     // of its threads.
     std::function<void(std::function<void()>)> on_ui_thread;

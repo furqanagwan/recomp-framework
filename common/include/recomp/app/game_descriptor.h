@@ -24,6 +24,15 @@ struct TitleUpdateDescriptor {
   std::vector<TitleUpdateCodePatch> code_patches;
 };
 
+// One piece of downloadable content the title shipped, so the guide can list it
+// whether or not the player has it yet. file_name is the package's own name,
+// which is how the console identified content and how an installed copy is
+// recognised again.
+struct DlcDescriptor {
+  std::string label;
+  std::string file_name;
+};
+
 struct GameDescriptor {
   std::string app_name;
   std::string display_name;
@@ -31,6 +40,9 @@ struct GameDescriptor {
   // Empty means this executable was generated from the disc XEX. When set,
   // this executable was generated from exactly the declared title update.
   std::optional<TitleUpdateDescriptor> title_update;
+  // The content this title can have. Leaving it empty is fine: the guide still
+  // lists whatever is installed, it just cannot name what is missing.
+  std::vector<DlcDescriptor> dlc;
 };
 
 }  // namespace recomp

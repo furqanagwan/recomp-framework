@@ -41,6 +41,38 @@ ContentPackageInstaller::ContentPackageInstaller(rex::system::xam::ContentManage
                                                  uint32_t title_id)
     : content_manager_(content_manager), title_id_(title_id) {}
 
+bool ContentPackageInstaller::InstallOne(const std::filesystem::path& package_path,
+                                         std::string& error) {
+  std::error_code file_error;
+  if (!std::filesystem::is_regular_file(package_path, file_error)) {
+    error = "There is no file at that path.";
+    return false;
+  }
+  error.clear();
+  return InstallPackage(package_path, &error);
+}
+
+std::vector<ContentPackageInstaller::InstalledContent> ContentPackageInstaller::ListInstalled()
+    const {
+  std::vector<InstalledContent> content;
+  for (const auto& data : content_manager_.ListContent(
+           static_cast<uint32_t>(rex::system::xam::DummyDeviceId::HDD), 0,
+           XContentType::kMarketplaceContent, title_id_)) {
+    InstalledContent entry;
+    entry.file_name = data.file_name();
+    entry.display_name = rex::string::to_utf8(data.display_name());
+    if (entry.display_name.empty()) {
+      entry.display_name = entry.file_name;
+    }
+    content.push_back(std::move(entry));
+  }
+  std::sort(content.begin(), content.end(),
+            [](const InstalledContent& a, const InstalledContent& b) {
+              return a.display_name < b.display_name;
+            });
+  return content;
+}
+
 int ContentPackageInstaller::InstallFrom(const std::filesystem::path& source) {
   int installed = 0;
   for (const auto& file : CollectPackageFiles(source)) {
@@ -51,10 +83,17 @@ int ContentPackageInstaller::InstallFrom(const std::filesystem::path& source) {
   return installed;
 }
 
-bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& package_path) {
+bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& package_path,
+                                             std::string* error) {
+  const auto fail = [error](std::string reason) {
+    if (error) {
+      *error = std::move(reason);
+    }
+    return false;
+  };
   const auto header = rex::filesystem::StfsContainerDevice::ReadPackageHeader(package_path);
   if (!header) {
-    return false;
+    return fail("That file is not an Xbox 360 content package.");
   }
   const auto file_name = rex::path_to_utf8(package_path.filename());
   const XContentType content_type = header->metadata.content_type;
@@ -63,18 +102,18 @@ bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& packag
   if (package_title_id != title_id_) {
     REXLOG_WARN("DLC: skipping {}: it belongs to title {:08X}, not {:08X}", file_name,
                 package_title_id, title_id_);
-    return false;
+    return fail("That content belongs to a different game.");
   }
   if (content_type == XContentType::kInstaller) {
     REXLOG_WARN("DLC: skipping {}: title updates are installed before startup by an "
                 "update-targeted build",
                 file_name);
-    return false;
+    return fail("That is a title update, not downloadable content.");
   }
   if (content_type != XContentType::kMarketplaceContent) {
     REXLOG_WARN("DLC: skipping {}: content type {:08X} is not downloadable content", file_name,
                 uint32_t(content_type));
-    return false;
+    return fail("That package is not downloadable content.");
   }
 
   rex::system::xam::XCONTENT_AGGREGATE_DATA content_data;
@@ -87,7 +126,7 @@ bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& packag
   if (XSUCCEEDED(content_manager_.ReadContentHeaderFile(content_data.file_name(), 0, title_id_,
                                                         content_type, installed_header))) {
     REXLOG_DEBUG("DLC: {} is already installed", file_name);
-    return false;
+    return fail("That content is already installed.");
   }
 
   const auto display_name =
@@ -98,7 +137,7 @@ bool ContentPackageInstaller::InstallPackage(const std::filesystem::path& packag
   if (XFAILED(result)) {
     REXLOG_ERROR("DLC: installing {} failed: {:08X}", file_name, result);
     content_manager_.DeleteContent(0, content_data);
-    return false;
+    return fail("The content could not be installed. See the log for details.");
   }
   return true;
 }

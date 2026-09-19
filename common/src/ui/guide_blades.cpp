@@ -8,11 +8,13 @@
 #include <imgui.h>
 
 #include <rex/cvar.h>
+#include <rex/input/input.h>
 #include <rex/ui/overlay/achievement_icon_cache.h>
 
 #include "recomp/ui/guide_fonts.h"
 #include "guide_scene.h"
 #include "guide_theme.h"
+#include "recomp/input/controller_menu_watcher.h"
 #include "recomp/ui/guide_resources.h"
 
 REXCVAR_DECLARE(std::string, recomp_gamertag);
@@ -55,6 +57,13 @@ constexpr float kAchievementTitleSize = 38.0f;
 constexpr float kAchievementDetailSize = 28.0f;
 // Settings: a title row, then one row a setting, with the selected setting's
 // description under them.
+// The content list: one row per piece, with its state on the right, and a
+// footer saying where in the list this is - as the marketplace page did.
+constexpr float kDlcRowHeight = 62.0f;
+constexpr float kDlcTextSize = 40.0f;
+constexpr float kDlcFooterHeight = 52.0f;
+constexpr float kDlcFooterSize = 30.0f;
+
 constexpr float kSettingRowHeight = 62.0f;
 constexpr float kSettingTextSize = 40.0f;
 constexpr float kDetailTextSize = 28.0f;
@@ -73,6 +82,18 @@ constexpr float kRingRadius = 20.0f;
 constexpr float kClockRight = 1252.0f - 756.0f;
 constexpr float kClockTop = 90.0f - 427.5f;
 constexpr float kClockSize = 48.0f;
+
+// The charge indicator sits immediately left of the clock, as the console puts
+// it: a pad outline with the quadrant its player owns lit, then a battery with
+// one bar per reported level.
+constexpr float kBatteryGap = 22.0f;
+constexpr float kPadWidth = 44.0f;
+constexpr float kPadHeight = 30.0f;
+constexpr float kBatteryWidth = 38.0f;
+constexpr float kBatteryHeight = 20.0f;
+constexpr float kBatteryCapWidth = 5.0f;
+constexpr float kBatteryCapHeight = 9.0f;
+constexpr float kBatteryBars = 3.0f;
 
 // The legend under the blades.
 constexpr float kLegendLeft = 262.0f - 756.0f;
@@ -173,6 +194,11 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
   achievement_scroll_ = std::clamp(achievement_scroll_,
                                    std::max(0, achievement_selected_ - achievement_rows + 1),
                                    std::max(0, achievement_selected_));
+  // The same for the content list, which shares the list area.
+  const int dlc_rows =
+      static_cast<int>((kListBottom - kRowsTop - kDlcFooterHeight) / kDlcRowHeight);
+  dlc_scroll_ = std::clamp(dlc_scroll_, std::max(0, dlc_selected_ - dlc_rows + 1),
+                           std::max(0, dlc_selected_));
   int selection = selected_;
   switch (page_) {
     case Page::kExitConfirmation:
@@ -183,6 +209,9 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
       break;
     case Page::kAchievements:
       selection = achievement_selected_ - achievement_scroll_;
+      break;
+    case Page::kDlc:
+      selection = dlc_selected_ - dlc_scroll_;
       break;
     case Page::kRoot:
       break;
@@ -252,12 +281,15 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
   draw_list->PathStroke(Fade(IM_COL32(0x9C, 0xE0, 0x2C, 255), open), 0, ring_width);
 
   const std::string clock = Clock();
+  float chrome_right = kClockRight;
   if (!clock.empty()) {
     const float size = screen.Size(kClockSize);
     shadowed(ImVec2(screen.At(kClockRight, kClockTop).x - TextWidth(size, clock),
                     screen.At(kClockRight, kClockTop).y),
              size, clock);
+    chrome_right -= TextWidth(kClockSize, clock) + kBatteryGap;
   }
+  DrawControllerCharge(draw_list, screen, chrome_right, kClockTop, open);
 
   // Blades. The pale one and the list go last so their edges lie over the
   // slate tabs'.
@@ -471,6 +503,49 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
       break;
     }
 
+    case Page::kDlc: {
+      const int last = std::min(dlc_scroll_ + dlc_rows, static_cast<int>(dlc_.size()));
+      const float size = screen.Size(kDlcTextSize);
+      for (int i = dlc_scroll_; i < last; ++i) {
+        const DlcRow& row = dlc_[static_cast<size_t>(i)];
+        const int on_screen = i - dlc_scroll_;
+        const Band band = draw_band(kRowsTop + kDlcRowHeight * static_cast<float>(on_screen),
+                                    kDlcRowHeight, on_screen);
+        // Content the player has is stated rather than offered; what is
+        // missing carries the verb, because pressing A on it does install it.
+        const std::string state = row.browse ? "" : row.installed ? "Installed" : "Install";
+        const float state_width = state.empty() ? 0.0f : TextWidth(size, state);
+        const float y = (band.min.y + band.max.y - size) * 0.5f - screen.Size(3.0f);
+        DrawText(draw_list, ImVec2(text_left, y), size, text_color(band.focused),
+                 trim(row.label, size, text_right - text_left - state_width - screen.Size(24.0f)));
+        if (!state.empty()) {
+          // Installed reads as settled, so it takes the quieter colour even
+          // when the row is focused; Install is the one asking to be pressed.
+          const ImU32 state_color = row.installed
+                                        ? detail_color(band.focused)
+                                        : (band.focused ? detail_color(true)
+                                                        : Fade(palette.focus_bottom, list_alpha));
+          DrawText(draw_list, ImVec2(text_right - state_width, y), size, state_color, state);
+        }
+      }
+
+      // The footer: what happened last, or where in the list this is.
+      const Band footer = draw_band(kListBottom - kDlcFooterHeight, kDlcFooterHeight, -1);
+      const float footer_size = screen.Size(kDlcFooterSize);
+      const float footer_y = (footer.min.y + footer.max.y - footer_size) * 0.5f;
+      const std::string position =
+          std::to_string(dlc_selected_ + 1) + " of " + std::to_string(dlc_.size());
+      DrawText(draw_list, ImVec2(text_left, footer_y), footer_size, detail_color(false),
+               dlc_status_.empty()
+                   ? position
+                   : trim(dlc_status_, footer_size, text_right - text_left - screen.Size(8.0f)));
+      if (!dlc_status_.empty()) {
+        DrawText(draw_list, ImVec2(text_right - TextWidth(footer_size, position), footer_y),
+                 footer_size, detail_color(false), position);
+      }
+      break;
+    }
+
     case Page::kSettings: {
       const char* title = settings_section_ == "controls"     ? "Controls"
                           : settings_section_ == "game_files" ? "Game Files"
@@ -542,6 +617,9 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
     case Page::kAchievements:
       hints = {b_back};
       break;
+    case Page::kDlc:
+      hints = {{"A", "Install"}, b_back};
+      break;
     case Page::kSettings:
       hints = {{"A", "Change"}, b_back, {"X", "Save"}};
       break;
@@ -556,6 +634,68 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
     const ImVec2 text(x + glyph + screen.Size(kLegendGlyphGap), y - legend_text * 0.55f);
     shadowed(text, legend_text, hint.label);
     x = text.x + TextWidth(legend_text, hint.label) + screen.Size(kLegendItemGap);
+  }
+}
+
+
+void GuideDialog::DrawControllerCharge(ImDrawList* draw_list, const Screen& screen, float right,
+                                       float top, float open) {
+  rex::input::X_INPUT_BATTERY_INFORMATION battery{};
+  if (!GuestInputGate::ReadBatteryForMenu(battery)) {
+    return;
+  }
+  // A wired pad has a charge nobody needs to watch, so the console showed the
+  // pad without a meter. Anything else gets both.
+  const bool wired = battery.type == rex::input::X_INPUT_BATTERY_TYPE_WIRED;
+  const float total = kPadWidth + (wired ? 0.0f : 8.0f + kBatteryWidth + kBatteryCapWidth);
+  const float left = right - total;
+  const ImU32 chrome = Fade(IM_COL32(0xE8, 0xE8, 0xE8, 0xFF), open);
+  const float line = std::max(1.0f, screen.Size(2.5f));
+
+  // The pad: a rounded body with player one's quadrant lit, the same green the
+  // ring of light uses.
+  const ImVec2 pad_min = screen.At(left, top - kPadHeight * 0.15f);
+  const ImVec2 pad_max = screen.At(left + kPadWidth, top - kPadHeight * 0.15f + kPadHeight);
+  draw_list->AddRect(pad_min, pad_max, chrome, screen.Size(10.0f), 0, line);
+  const ImVec2 lit_min(pad_min.x + line * 2.0f, pad_min.y + line * 2.0f);
+  const ImVec2 lit_max((pad_min.x + pad_max.x) * 0.5f - line * 0.5f,
+                       (pad_min.y + pad_max.y) * 0.5f - line * 0.5f);
+  draw_list->AddRectFilled(lit_min, lit_max, Fade(IM_COL32(0x9C, 0xE0, 0x2C, 0xFF), open),
+                           screen.Size(4.0f));
+  if (wired) {
+    return;
+  }
+
+  const float meter_left = left + kPadWidth + 8.0f;
+  const float meter_top = top + (kPadHeight - kBatteryHeight) * 0.5f - kPadHeight * 0.15f;
+  const ImVec2 body_min = screen.At(meter_left, meter_top);
+  const ImVec2 body_max = screen.At(meter_left + kBatteryWidth, meter_top + kBatteryHeight);
+  draw_list->AddRect(body_min, body_max, chrome, screen.Size(3.0f), 0, line);
+  draw_list->AddRectFilled(
+      screen.At(meter_left + kBatteryWidth, meter_top + (kBatteryHeight - kBatteryCapHeight) * 0.5f),
+      screen.At(meter_left + kBatteryWidth + kBatteryCapWidth,
+                meter_top + (kBatteryHeight + kBatteryCapHeight) * 0.5f),
+      chrome, screen.Size(2.0f));
+
+  const int bars = std::min(static_cast<int>(battery.level), static_cast<int>(kBatteryBars));
+  // Empty reads as a warning rather than as nothing to say, so it is the one
+  // level that changes colour.
+  const ImU32 fill = battery.level == rex::input::X_INPUT_BATTERY_LEVEL_EMPTY
+                         ? Fade(IM_COL32(0xE0, 0x3C, 0x2C, 0xFF), open)
+                         : Fade(IM_COL32(0x9C, 0xE0, 0x2C, 0xFF), open);
+  const float inset = 3.0f;
+  const float bar_span = (kBatteryWidth - inset * 2.0f) / kBatteryBars;
+  for (int bar = 0; bar < bars; ++bar) {
+    const float bar_left = meter_left + inset + bar_span * float(bar);
+    draw_list->AddRectFilled(screen.At(bar_left + 1.0f, meter_top + inset),
+                             screen.At(bar_left + bar_span - 1.0f,
+                                       meter_top + kBatteryHeight - inset),
+                             fill);
+  }
+  if (bars == 0) {
+    // Nothing left to draw as a bar, but the meter should still read as empty
+    // rather than as absent, so the body is outlined in the warning colour.
+    draw_list->AddRect(body_min, body_max, fill, screen.Size(3.0f), 0, line);
   }
 }
 

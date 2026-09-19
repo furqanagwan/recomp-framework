@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <rex/system/achievement_store.h>
 #include <rex/ui/imgui_dialog.h>
+#include "recomp/app/game_descriptor.h"
 #include "recomp/ui/guide_navigation.h"
 #include "recomp/ui/settings_dialog.h"
 
@@ -25,6 +26,11 @@ class ImmediateTexture;
 
 namespace recomp {
 
+// Defined in the guide's own scene header, which stays private to its sources.
+namespace guide_scene {
+struct Screen;
+}  // namespace guide_scene
+
 class GuideResources;
 struct GuideTheme;
 
@@ -38,6 +44,9 @@ struct GuideActions {
   rex::system::AchievementManager* achievements = nullptr;
   // For achievement icons that live in the title's XDBF rather than on disk.
   rex::Runtime* runtime = nullptr;
+  // The content this title can have, so the guide can name what is missing as
+  // well as what is installed.
+  std::vector<DlcDescriptor> dlc;
 };
 
 // The compatibility guide's screen, in the shape of the Xbox 360 guide a Series
@@ -65,6 +74,7 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   enum class Page {
     kRoot,
     kAchievements,
+    kDlc,
     kSettings,
     kExitConfirmation,
   };
@@ -84,6 +94,15 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
     uint64_t unlocked_at = 0;
   };
 
+  // One line of the content list: what it is called, and whether the player
+  // has it. A row with no file name is the catch-all that takes any package.
+  struct DlcRow {
+    std::string label;
+    std::string file_name;
+    bool installed = false;
+    bool browse = false;
+  };
+
   void BuildEntries();
   void SwitchTab(int direction);
   void BuildSettings();
@@ -92,6 +111,12 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void DrawSettings(ImDrawList* draw_list, ImVec2 top_left, float width);
   void LoadAchievements();
   bool HasAchievements() const;
+  // Reads the title's installed content and pairs it with the declared
+  // catalogue. Cheap enough to redo after an install.
+  void LoadDlc();
+  bool HasDlc() const;
+  // Asks for the path to a package, then installs it and refreshes the list.
+  void AskForDlcPath(const DlcRow& row);
 
   // Reads the controller and keyboard for one frame and acts on them.
   void HandleGuideInput();
@@ -116,6 +141,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   void DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io);
   // The title, gamer tile and clock, which sit on the game above the panel.
   void DrawChrome(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 panel_max);
+  // Player one's pad and what is left in it, left of the clock.
+  void DrawControllerCharge(ImDrawList* draw_list, const guide_scene::Screen& screen, float right,
+                            float top, float open);
   // The Games and Settings tabs down the sides, and the player's own between
   // them, as the console stacks them.
   float DrawTabs(ImDrawList* draw_list, ImVec2 panel_min, ImVec2 panel_max);
@@ -150,6 +178,13 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   std::string settings_status_;
   int setting_selected_ = 0;
   std::vector<AchievementRow> achievements_;
+  std::vector<DlcRow> dlc_;
+  bool dlc_loaded_ = false;
+  int dlc_installed_count_ = 0;
+  int dlc_selected_ = 0;
+  int dlc_scroll_ = 0;
+  // What the last install attempt said, shown under the list.
+  std::string dlc_status_;
   bool achievements_loaded_ = false;
   int unlocked_count_ = 0;
   int earned_gamerscore_ = 0;

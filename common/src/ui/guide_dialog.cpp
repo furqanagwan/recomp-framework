@@ -6,15 +6,19 @@
 #include <imgui.h>
 
 #include <rex/cvar.h>
+#include <rex/runtime.h>
 #include <rex/system/achievement_manager.h>
+#include <rex/system/xam/content_manager.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/immediate_drawer.h>
 #include <rex/ui/overlay/achievement_icon_cache.h>
 
 #include "recomp/input/controller_menu_watcher.h"
+#include "recomp/installer/content_package_installer.h"
 #include "recomp/input/imgui_gamepad_bridge.h"
 #include "recomp/ui/guide_resources.h"
 #include "recomp/ui/guide_sounds.h"
+#include "recomp/ui/virtual_keyboard_dialog.h"
 #include "recomp/ui/guide_fonts.h"
 #include "recomp/settings/user_settings_store.h"
 
@@ -154,6 +158,27 @@ std::string GamerscoreText(int score) {
   return std::to_string(score) + " G";
 }
 
+// The keyboard dialog speaks UTF-16. Paths the player types are ASCII in
+// practice, and anything outside it would not survive the round trip, so this
+// is the same narrow conversion the disc picker uses.
+std::u16string ToUtf16(const std::string& text) {
+  std::u16string out;
+  out.reserve(text.size());
+  for (unsigned char c : text) {
+    out.push_back(static_cast<char16_t>(c));
+  }
+  return out;
+}
+
+std::string FromUtf16(const std::u16string& text) {
+  std::string out;
+  out.reserve(text.size());
+  for (char16_t c : text) {
+    out.push_back(c < 0x80 ? static_cast<char>(c) : '?');
+  }
+  return out;
+}
+
 }  // namespace
 
 GuideDialog::GuideDialog(rex::ui::ImGuiDrawer* drawer, GuideActions actions)
@@ -168,6 +193,7 @@ GuideDialog::GuideDialog(rex::ui::ImGuiDrawer* drawer, GuideActions actions)
     }
   }
   LoadAchievements();
+  LoadDlc();
   BuildEntries();
   GuideSounds::Get().Play(GuideSounds::Cue::kOpen);
   for (const auto& setting : UserSettingsStore::Settings()) {
@@ -214,6 +240,108 @@ void GuideDialog::LoadAchievements() {
       [](const AchievementRow& a, const AchievementRow& b) { return a.unlocked && !b.unlocked; });
 }
 
+void GuideDialog::LoadDlc() {
+  dlc_.clear();
+  dlc_installed_count_ = 0;
+  dlc_loaded_ = true;
+
+  std::vector<ContentPackageInstaller::InstalledContent> installed;
+  if (actions_.runtime) {
+    auto* kernel_state = actions_.runtime->kernel_state();
+    if (kernel_state && kernel_state->content_manager()) {
+      ContentPackageInstaller installer(*kernel_state->content_manager(),
+                                        kernel_state->title_id());
+      installed = installer.ListInstalled();
+    }
+  }
+  const auto same_file = [](const std::string& a, const std::string& b) {
+    return a.size() == b.size() &&
+           std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+             return std::tolower(static_cast<unsigned char>(x)) ==
+                    std::tolower(static_cast<unsigned char>(y));
+           });
+  };
+
+  // The declared catalogue first, in the order the title lists it, so the page
+  // reads the same whether or not anything is installed yet.
+  std::vector<bool> claimed(installed.size(), false);
+  for (const auto& declared : actions_.dlc) {
+    DlcRow row;
+    row.label = declared.label;
+    row.file_name = declared.file_name;
+    for (size_t i = 0; i < installed.size(); ++i) {
+      if (!claimed[i] && same_file(installed[i].file_name, declared.file_name)) {
+        row.installed = true;
+        claimed[i] = true;
+        break;
+      }
+    }
+    if (row.installed) {
+      ++dlc_installed_count_;
+    }
+    dlc_.push_back(std::move(row));
+  }
+  // Then anything installed the catalogue does not describe, named by the
+  // package itself. A player who side-loaded content still sees it listed.
+  for (size_t i = 0; i < installed.size(); ++i) {
+    if (claimed[i]) {
+      continue;
+    }
+    DlcRow row;
+    row.label = installed[i].display_name;
+    row.file_name = installed[i].file_name;
+    row.installed = true;
+    ++dlc_installed_count_;
+    dlc_.push_back(std::move(row));
+  }
+  // The console had a marketplace to browse; this has the player's own disk.
+  DlcRow browse;
+  browse.label = "Install from a file...";
+  browse.browse = true;
+  dlc_.push_back(std::move(browse));
+
+  dlc_selected_ = std::clamp(dlc_selected_, 0, static_cast<int>(dlc_.size()) - 1);
+}
+
+bool GuideDialog::HasDlc() const {
+  // The browse row is always there, so it alone does not count as content.
+  return dlc_.size() > 1;
+}
+
+void GuideDialog::AskForDlcPath(const DlcRow& row) {
+  auto* kernel_state = actions_.runtime ? actions_.runtime->kernel_state() : nullptr;
+  if (!kernel_state || !kernel_state->content_manager()) {
+    dlc_status_ = "Content cannot be installed until the game has started.";
+    return;
+  }
+  rex::kernel::xam::KeyboardUiRequest keyboard;
+  keyboard.title = ToUtf16("Install content");
+  keyboard.description =
+      ToUtf16(row.browse ? "Enter the full path to a content package."
+                         : "Enter the full path to the package for " + row.label + ".");
+  keyboard.max_length = 512;
+  const uint32_t title_id = kernel_state->title_id();
+  auto* content_manager = kernel_state->content_manager();
+  new VirtualKeyboardDialog(
+      imgui_drawer(), keyboard, [this, content_manager, title_id](std::optional<std::u16string> text) {
+        if (!text || text->empty()) {
+          return;
+        }
+        ContentPackageInstaller installer(*content_manager, title_id);
+        std::string error;
+        if (installer.InstallOne(rex::to_path(FromUtf16(*text)), error)) {
+          dlc_status_ = "Installed.";
+          GuideSounds::Get().Play(GuideSounds::Cue::kSelect);
+        } else {
+          dlc_status_ = error.empty() ? "That content could not be installed." : error;
+          GuideSounds::Get().Play(GuideSounds::Cue::kBack);
+        }
+        // Whether it worked or not, what is on disk may have changed.
+        LoadDlc();
+        BuildEntries();
+      });
+}
+
 void GuideDialog::BuildEntries() {
   entries_.clear();
   if (tab_ == GuideTab::kGames) {
@@ -228,6 +356,20 @@ void GuideDialog::BuildEntries() {
       entry.value = "None";
     }
     entries_.push_back(std::move(entry));
+
+    Entry dlc;
+    dlc.label = "Downloadable Content";
+    dlc.closes_guide = false;
+    if (HasDlc()) {
+      dlc.value = std::to_string(dlc_installed_count_) + "/" +
+                  std::to_string(dlc_.size() - 1);
+    } else {
+      dlc.value = "None";
+    }
+    // Even a title with nothing declared opens the page, because that is where
+    // a package on disk is installed from.
+    dlc.opens = Page::kDlc;
+    entries_.push_back(std::move(dlc));
   } else if (tab_ == GuideTab::kSettings) {
     if (!actions_.settings.settings_file.empty()) {
       for (const auto& section :
@@ -638,6 +780,9 @@ GuideDialog::Snapshot GuideDialog::TakeSnapshot() const {
     case Page::kAchievements:
       selection = achievement_selected_;
       break;
+    case Page::kDlc:
+      selection = dlc_selected_;
+      break;
     case Page::kExitConfirmation:
       selection = exit_choice_;
       break;
@@ -705,6 +850,26 @@ void GuideDialog::HandleGuideInput() {
     HandleInput(achievement_selected_, static_cast<int>(achievements_.size()), 6);
     if (back) {
       page_ = Page::kRoot;
+    }
+    return;
+  }
+
+  if (page_ == Page::kDlc) {
+    const bool chosen = HandleInput(dlc_selected_, static_cast<int>(dlc_.size()), 6);
+    if (back) {
+      page_ = Page::kRoot;
+      dlc_status_.clear();
+      return;
+    }
+    if (chosen && !dlc_.empty()) {
+      const DlcRow& row = dlc_[static_cast<size_t>(dlc_selected_)];
+      if (row.installed) {
+        // Nothing to do for content the player already has, but saying so
+        // beats a press that appears to do nothing at all.
+        dlc_status_ = row.label + " is already installed.";
+      } else {
+        AskForDlcPath(row);
+      }
     }
     return;
   }

@@ -254,6 +254,7 @@ void GameRecompApp::OnPostSetup() {
                          },
                      .achievements = &achievements(),
                      .runtime = runtime(),
+                     .dlc = descriptor_.dlc,
                      .on_ui_thread =
                          [this](std::function<void()> work) {
                            app_context().CallInUIThreadDeferred(std::move(work));
