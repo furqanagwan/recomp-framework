@@ -4,7 +4,7 @@ Shared framework for native PC static recompilations of Xbox 360 games built on
 [ReXGlue](https://github.com/rexglue/rexglue-sdk). It is what turns a game's
 recompiled code into an app a player can run from their own disc image: first-run
 ISO install, DLC install, controller-driven system and settings menus, portable
-mode, Xbox PC app and UWP packaging.
+mode and Xbox PC app packaging.
 
 Used by:
 
@@ -89,7 +89,6 @@ is upstream ReXGlue plus:
 - gpu/d3d12: issued draws feed the debug overlay counter
 - kernel: 64-bit export arguments (XUIDs, file times) are no longer truncated,
   which broke NBA LIVE 10 profile saves
-- platform: a UWP build (`REXGLUE_PLATFORM_UWP`) for Xbox Developer Mode
 - system: repeated export lookups reuse their thunk (upstream #420)
 - filesystem: relative guest paths resolve against `game:` (upstream #405)
 - upstream PRs #422, #423, #424 (Windows clone and install build fixes),

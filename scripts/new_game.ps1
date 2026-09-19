@@ -41,7 +41,6 @@ $replacements = @{
 $destinations = @{
     'CMakeLists.txt'           = 'CMakeLists.txt'
     'CMakePresets.json'        = 'CMakePresets.json'
-    'uwp\AppxManifest.xml'     = 'uwp\AppxManifest.xml'
     'src\main.cpp'             = 'src\main.cpp'
     'src\app.h'                = "src\$($ProjectName)_app.h"
     'settings\game.toml'       = "settings\$ProjectName.toml"

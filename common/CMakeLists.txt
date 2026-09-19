@@ -56,13 +56,7 @@ add_library(recomp_common STATIC
     src/ui/message_box_dialog.cpp
 )
 
-if(REXGLUE_PLATFORM_UWP)
-    target_sources(recomp_common PRIVATE src/platform/native_file_picker_uwp.cpp
-                                         src/platform/http_download_windows.cpp
-                                         src/platform/application_restart_windows.cpp)
-    rexglue_uwp_cppwinrt_include_dir(recomp_cppwinrt_include_dir)
-    target_include_directories(recomp_common SYSTEM PRIVATE "${recomp_cppwinrt_include_dir}")
-elseif(WIN32)
+if(WIN32)
     target_sources(recomp_common PRIVATE src/platform/native_file_picker_windows.cpp
                                          src/platform/http_download_windows.cpp
                                          src/platform/application_restart_windows.cpp)
@@ -94,10 +88,22 @@ if(TARGET imgui)
     target_include_directories(recomp_common PUBLIC $<TARGET_PROPERTY:imgui,INTERFACE_INCLUDE_DIRECTORIES>)
 endif()
 
-set(RECOMP_GDK_ROOT "C:/Program Files (x86)/Microsoft GDK/260404/windows" CACHE PATH
-    "Microsoft GDK windows folder containing include and lib/x64")
+# Windows is a GDK target and nothing else: the April 2026 GDK, whose folder is
+# named for its edition. This is the one place to change for a newer one.
+set(RECOMP_GDK_EDITION "260404" CACHE STRING "Microsoft GDK edition (April 2026)")
+set(RECOMP_GDK_ROOT "C:/Program Files (x86)/Microsoft GDK/${RECOMP_GDK_EDITION}/windows"
+    CACHE PATH "Microsoft GDK windows folder containing include and lib/x64")
 
-if(WIN32 AND NOT REXGLUE_PLATFORM_UWP AND EXISTS "${RECOMP_GDK_ROOT}/include/XGameRuntimeInit.h")
+if(WIN32 AND NOT EXISTS "${RECOMP_GDK_ROOT}/include/XGameRuntimeInit.h")
+    # Not fatal, because a plain build still runs; but the Xbox PC app package
+    # and the gaming runtime need it, so say which edition is missing rather
+    # than letting those quietly not be built.
+    message(WARNING "recomp_common: Microsoft GDK ${RECOMP_GDK_EDITION} not found at "
+                    "${RECOMP_GDK_ROOT}. Install it (winget install Microsoft.Gaming.GDK) "
+                    "for the gaming runtime and GDK packaging.")
+endif()
+
+if(WIN32 AND EXISTS "${RECOMP_GDK_ROOT}/include/XGameRuntimeInit.h")
     message(STATUS "recomp_common: Microsoft GDK found at ${RECOMP_GDK_ROOT}")
     target_compile_definitions(recomp_common PRIVATE RECOMP_HAS_GDK)
     target_include_directories(recomp_common PRIVATE "${RECOMP_GDK_ROOT}/include")
