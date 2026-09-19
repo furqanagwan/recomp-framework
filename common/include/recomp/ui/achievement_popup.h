@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <initializer_list>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -44,6 +45,10 @@ class AchievementPopup final : public rex::ui::AchievementNotificationDialog {
     rex::system::AchievementEvent event;
     std::chrono::steady_clock::time_point started;
   };
+
+  // The first of these the supplied artwork has. The console's own names come
+  // first; the rest are what earlier builds of this looked for.
+  rex::ui::ImmediateTexture* FirstArtwork(std::initializer_list<const char*> names);
 
   rex::Runtime* runtime_ = nullptr;
   std::unique_ptr<GuideResources> resources_;

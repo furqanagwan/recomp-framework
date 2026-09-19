@@ -34,8 +34,10 @@ void GuideDialog::BuildSettings() {
     setting_rows_ = {
         {"Game files", "", {}, actions_.settings.game_data_root.string()},
         {"Saves, cache & settings", "", {}, actions_.settings.user_data_root.string()},
-        {"DLC", "", {}, actions_.settings.dlc_folder.string() +
-                                "\nPackages are installed the next time the game starts."},
+        {"Downloadable Content", "", {},
+         actions_.settings.dlc_folder.string() +
+             "\nPackages in this folder are installed when the game starts.",
+         Page::kDlc},
         {"Portable mode", "", {}, actions_.settings.portable ? "Portable mode is on." :
           "Create portable.txt next to the executable to keep saves beside the game."},
     };
@@ -78,6 +80,13 @@ void GuideDialog::ChangeSetting(int direction) {
   setting_acted_ = true;
   if (setting_rows_.empty()) return;
   const auto& row = setting_rows_[static_cast<size_t>(setting_selected_)];
+  if (row.opens != Page::kRoot) {
+    // This row is a way in, not a value: the content list lives behind the one
+    // that names the DLC folder, so B from it comes back here.
+    settings_return_ = true;
+    page_ = row.opens;
+    return;
+  }
   if (setting_selected_ == static_cast<int>(setting_rows_.size()) - 1) {
     SaveSettings();
     return;

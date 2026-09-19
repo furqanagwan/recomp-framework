@@ -254,7 +254,8 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
 
   const ImVec2 tile_min = screen.At(kTileLeft, kTileTop);
   const ImVec2 tile_max = screen.At(kTileLeft + kTileSize, kTileTop + kTileSize);
-  if (rex::ui::ImmediateTexture* tile = FirstArtwork({"gamerpic.png", "gamertile.png"})) {
+  if (rex::ui::ImmediateTexture* tile =
+          FirstArtwork({"ico_96x_gamerpic.png", "gamerpic.png", "gamertile.png"})) {
     draw_list->AddImage(reinterpret_cast<ImTextureID>(tile), tile_min, tile_max, ImVec2(0, 0),
                         ImVec2(1, 1), Fade(IM_COL32(255, 255, 255, 255), open));
   } else {
@@ -447,7 +448,7 @@ void GuideDialog::DrawBladeScene(ImDrawList* draw_list, const ImGuiIO& io) {
         const ImVec2 icon_max(icon_min.x + icon, icon_min.y + icon);
         rex::ui::ImmediateTexture* texture = icons_ ? icons_->GetIcon(row.info) : nullptr;
         if (!texture) {
-          texture = Artwork("unearnedAchievement.png");
+          texture = FirstArtwork({"lockedIcon.png", "unearnedAchievement.png"});
         }
         // Earned: the picture in full and the row in the list's own colours.
         // Not yet earned: the picture faded and the words greyed, so what is

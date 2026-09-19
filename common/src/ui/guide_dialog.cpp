@@ -254,8 +254,8 @@ void GuideDialog::LoadDlc() {
       installed = installer.ListInstalled();
     }
   }
-  const auto same_file = [](const std::string& a, const std::string& b) {
-    return a.size() == b.size() &&
+  const auto same_text = [](const std::string& a, const std::string& b) {
+    return !a.empty() && a.size() == b.size() &&
            std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
              return std::tolower(static_cast<unsigned char>(x)) ==
                     std::tolower(static_cast<unsigned char>(y));
@@ -270,7 +270,13 @@ void GuideDialog::LoadDlc() {
     row.label = declared.label;
     row.file_name = declared.file_name;
     for (size_t i = 0; i < installed.size(); ++i) {
-      if (!claimed[i] && same_file(installed[i].file_name, declared.file_name)) {
+      if (claimed[i]) {
+        continue;
+      }
+      // The file name is the reliable identity; the title is what a catalogue
+      // built from a store listing has, so either counts as a match.
+      if (same_text(installed[i].file_name, declared.file_name) ||
+          same_text(installed[i].display_name, declared.label)) {
         row.installed = true;
         claimed[i] = true;
         break;
@@ -356,20 +362,6 @@ void GuideDialog::BuildEntries() {
       entry.value = "None";
     }
     entries_.push_back(std::move(entry));
-
-    Entry dlc;
-    dlc.label = "Downloadable Content";
-    dlc.closes_guide = false;
-    if (HasDlc()) {
-      dlc.value = std::to_string(dlc_installed_count_) + "/" +
-                  std::to_string(dlc_.size() - 1);
-    } else {
-      dlc.value = "None";
-    }
-    // Even a title with nothing declared opens the page, because that is where
-    // a package on disk is installed from.
-    dlc.opens = Page::kDlc;
-    entries_.push_back(std::move(dlc));
   } else if (tab_ == GuideTab::kSettings) {
     if (!actions_.settings.settings_file.empty()) {
       for (const auto& section :
@@ -627,7 +619,10 @@ void GuideDialog::DrawAchievements(ImDrawList* draw_list, ImVec2 top_left, float
     if (!icon) {
       const bool secret =
           !row.unlocked && row.info.description.empty() && row.info.unachieved_description.empty();
-      icon = Artwork(secret ? "secretAchievement.png" : "unearnedAchievement.png");
+      icon = FirstArtwork(secret ? std::initializer_list<const char*>{"lockedIcon.png",
+                                                                      "secretAchievement.png"}
+                                 : std::initializer_list<const char*>{"lockedIcon.png",
+                                                                      "unearnedAchievement.png"});
     }
     if (icon) {
       const ImU32 tint = row.unlocked ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 120);
@@ -857,7 +852,9 @@ void GuideDialog::HandleGuideInput() {
   if (page_ == Page::kDlc) {
     const bool chosen = HandleInput(dlc_selected_, static_cast<int>(dlc_.size()), 6);
     if (back) {
-      page_ = Page::kRoot;
+      // Opened from Game Files, so back is that screen rather than the root.
+      page_ = settings_return_ ? Page::kSettings : Page::kRoot;
+      settings_return_ = false;
       dlc_status_.clear();
       return;
     }

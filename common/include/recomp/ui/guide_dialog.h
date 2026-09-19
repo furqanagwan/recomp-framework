@@ -171,6 +171,9 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
     std::string cvar;
     std::vector<std::pair<std::string, std::string>> choices;
     std::string description;
+    // A row that leads to a page rather than cycling a value. kRoot means it
+    // is an ordinary setting.
+    Page opens = Page::kRoot;
   };
   std::vector<SettingRow> setting_rows_;
   std::map<std::string, std::string> settings_at_open_;
@@ -180,6 +183,8 @@ class GuideDialog final : public rex::ui::ImGuiDialog {
   std::vector<AchievementRow> achievements_;
   std::vector<DlcRow> dlc_;
   bool dlc_loaded_ = false;
+  // The content list was reached from Game Files, so B returns there.
+  bool settings_return_ = false;
   int dlc_installed_count_ = 0;
   int dlc_selected_ = 0;
   int dlc_scroll_ = 0;

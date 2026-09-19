@@ -25,11 +25,18 @@ struct TitleUpdateDescriptor {
 };
 
 // One piece of downloadable content the title shipped, so the guide can list it
-// whether or not the player has it yet. file_name is the package's own name,
-// which is how the console identified content and how an installed copy is
-// recognised again.
+// whether or not the player has it yet.
+//
+// A declared entry is matched against installed content by file_name when one
+// is known - that is how the console identified content, and it does not move
+// between regions - and otherwise by the name inside the package, which is the
+// marketplace title. Matching by title is what a catalogue built from a store
+// listing can do, but the name in the package is localised, so a player on a
+// different region's copy may see their content listed separately rather than
+// ticked off against the entry it belongs to.
 struct DlcDescriptor {
   std::string label;
+  // Empty when only the marketplace title is known.
   std::string file_name;
 };
 

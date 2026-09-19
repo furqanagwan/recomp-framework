@@ -106,6 +106,19 @@ void AchievementPopup::Push(const rex::system::AchievementEvent& event) {
   queue_.push_back(event);
 }
 
+rex::ui::ImmediateTexture* AchievementPopup::FirstArtwork(
+    std::initializer_list<const char*> names) {
+  if (!resources_) {
+    return nullptr;
+  }
+  for (const char* name : names) {
+    if (rex::ui::ImmediateTexture* texture = resources_->Get(name)) {
+      return texture;
+    }
+  }
+  return nullptr;
+}
+
 void AchievementPopup::OnDraw(ImGuiIO& io) {
   const auto now = std::chrono::steady_clock::now();
   {
@@ -235,7 +248,7 @@ void AchievementPopup::OnDraw(ImGuiIO& io) {
   const float logo_scale = Sample({{5, 0.1f}, {37, 1.5f}, {43, 0.95f}}, frame);
   if (logo_alpha > 0.0f) {
     const float half = kLogoImage * 0.5f * scale * logo_scale;
-    if (auto* logo = resources_->Get("xenonLogo.png")) {
+    if (auto* logo = FirstArtwork({"xboxLogo.png", "xenonLogo.png"})) {
       draw->AddImage(reinterpret_cast<ImTextureID>(logo), ImVec2(badge.x - half, badge.y - half),
                      ImVec2(badge.x + half, badge.y + half), ImVec2(0, 0), ImVec2(1, 1),
                      Fade(IM_COL32(255, 255, 255, 255), logo_alpha));
@@ -257,7 +270,10 @@ void AchievementPopup::OnDraw(ImGuiIO& io) {
                                      {185, 0.0f}, {186, 1.0f}, {192, 0.0f}},
                                     frame);
   if (trophy_alpha > 0.0f) {
-    rex::ui::ImmediateTexture* trophy = resources_->Get("Achievement.png");
+    // The console's own name for it. The older names stay as fallbacks so a
+    // folder someone extracted before this still works.
+    rex::ui::ImmediateTexture* trophy =
+        FirstArtwork({"ico_64x_trophy.png", "Achievement.png", "ico_32x_achievement.png"});
     // Without the console's trophy, the achievement's own picture, larger.
     const float size = trophy ? kTrophyImage : 40.0f;
     if (!trophy && icons_) {
